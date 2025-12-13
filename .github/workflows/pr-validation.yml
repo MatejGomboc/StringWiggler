@@ -5,65 +5,49 @@ permissions:
 
 on:
     pull_request:
-        branches: ["**"] # Run PR validation on any branch.
+        branches: ["**"]
 
-    workflow_dispatch: # Manual trigger option.
+    workflow_dispatch:
 
 jobs:
-    verify_pr:
-        timeout-minutes: 30
+    linux-gcc:
+        uses: ./.github/workflows/build-linux-gcc.yml
 
-        strategy:
-            fail-fast: false # Don't cancel other jobs if one fails.
+    linux-clang:
+        uses: ./.github/workflows/build-linux-clang.yml
 
-            max-parallel: 20 # Use maximum possible parallelisation.
+    macos-clang:
+        uses: ./.github/workflows/build-macos-clang.yml
 
-            matrix:
-                include:
-                    - preset: windows-msvc
-                      os: windows-latest
-                    - preset: linux-gcc
-                      os: ubuntu-latest
-                    - preset: linux-clang
-                      os: ubuntu-latest
-                    - preset: macos-clang
-                      os: macos-latest
-                    - preset: windows-clang-cl
-                      os: windows-latest
-                    - preset: windows-mingw
-                      os: windows-latest
+    windows-msvc:
+        uses: ./.github/workflows/build-windows-msvc.yml
 
-        runs-on: ${{ matrix.os }}
+    windows-clang-cl:
+        uses: ./.github/workflows/build-windows-clang-cl.yml
 
-        steps:
-            - name: Checkout Github repository
-              uses: actions/checkout@v6
-
-            - name: Setup MSVC environment
-              if: matrix.preset == 'windows-msvc' || matrix.preset == 'windows-clang-cl'
-              uses: ilammy/msvc-dev-cmd@v1
-
-            - name: Configure CMake
-              run: cmake --preset=${{ matrix.preset }}
-
-            - name: Build Debug
-              run: cmake --build --preset=${{ matrix.preset }}-debug
-
-            - name: Build Release
-              run: cmake --build --preset=${{ matrix.preset }}-release
+    windows-mingw:
+        uses: ./.github/workflows/build-windows-mingw.yml
 
     pr_verification_summary:
-        needs: verify_pr
-
+        needs:
+            - linux-gcc
+            - linux-clang
+            - macos-clang
+            - windows-msvc
+            - windows-clang-cl
+            - windows-mingw
         runs-on: ubuntu-latest
-
-        if: always() # Run even if some matrix jobs failed.
-
+        if: always()
         steps:
             - name: Check if all jobs succeeded
               run: |
-                  if [[ "${{ needs.verify_pr.result }}" != "success" ]]; then
-                    echo "One or more jobs failed"
-                    exit 1
+                  if [[ "${{ needs.linux-gcc.result }}" != "success" || \
+                        "${{ needs.linux-clang.result }}" != "success" || \
+                        "${{ needs.macos-clang.result }}" != "success" || \
+                        "${{ needs.windows-msvc.result }}" != "success" || \
+                        "${{ needs.windows-clang-cl.result }}" != "success" || \
+                        "${{ needs.windows-mingw.result }}" != "success" ]]; then
+                      echo "One or more jobs failed"
+                      exit 1
                   fi
                   echo "All jobs completed successfully"
