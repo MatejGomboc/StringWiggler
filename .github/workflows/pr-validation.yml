@@ -1,6 +1,4 @@
 name: CI - PR Validation
-permissions:
-    contents: read
 
 permissions:
     contents: read
