@@ -1,0 +1,10 @@
+{
+    "version": 6,
+    "configurePresets": [
+        {
+            "name": "ninja-multi",
+            "generator": "Ninja Multi-Config",
+            "binaryDir": "${sourceDir}/build"
+        }
+    ]
+}
