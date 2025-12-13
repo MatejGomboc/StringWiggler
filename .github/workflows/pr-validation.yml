@@ -5,43 +5,43 @@ permissions:
 
 on:
     pull_request:
-        branches: ["**"]
+        branches: ["**"] # Run PR validation on any branch.
 
-    workflow_dispatch:
+    workflow_dispatch: # Manual trigger option.
 
 jobs:
     verify_pr:
         timeout-minutes: 30
 
         strategy:
-            fail-fast: false
-            max-parallel: 20
+            fail-fast: false # Don't cancel other jobs if one fails.
+
+            max-parallel: 20 # Use maximum possible parallelisation.
 
             matrix:
                 include:
+                    - preset: windows-msvc
+                      os: windows-latest
+                      msvc-setup-needed: true
                     - preset: linux-gcc
                       os: ubuntu-latest
                     - preset: linux-clang
                       os: ubuntu-latest
                     - preset: macos-clang
                       os: macos-latest
-                    - preset: windows-msvc
-                      os: windows-latest
-                      msvc: true
                     - preset: windows-clang-cl
                       os: windows-latest
-                      msvc: true
                     - preset: windows-mingw
                       os: windows-latest
 
         runs-on: ${{ matrix.os }}
 
         steps:
-            - name: Checkout repository
+            - name: Checkout Github repository
               uses: actions/checkout@v6
 
             - name: Setup MSVC environment
-              if: matrix.msvc
+              if: msvc-setup-needed
               uses: ilammy/msvc-dev-cmd@v1
 
             - name: Run CMake workflow
@@ -49,8 +49,10 @@ jobs:
 
     pr_verification_summary:
         needs: verify_pr
+
         runs-on: ubuntu-latest
-        if: always()
+
+        if: always() # Run even if some matrix jobs failed.
 
         steps:
             - name: Check if all jobs succeeded
