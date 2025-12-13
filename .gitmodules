@@ -2,5 +2,5 @@
     path = externals/volk
     url = https://github.com/zeux/volk.git
 [submodule "externals/Vulkan-Headers"]
-	path = externals/Vulkan-Headers
-	url = https://github.com/KhronosGroup/Vulkan-Headers.git
+    path = externals/Vulkan-Headers
+    url = https://github.com/KhronosGroup/Vulkan-Headers.git
