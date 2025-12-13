@@ -2,6 +2,9 @@ name: CI - PR Validation
 permissions:
     contents: read
 
+permissions:
+  contents: read
+
 on:
     pull_request:
         branches: ["**"] # Run PR validation on any branch.
