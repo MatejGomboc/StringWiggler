@@ -1,6 +1,6 @@
 # StringWiggler
 
-## 📜 License
+## 📜 Licence
 
 Copyright © 2025 Matej Gomboc 
 https://github.com/MatejGomboc/StringWiggler  
