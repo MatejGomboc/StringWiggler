@@ -22,6 +22,7 @@ jobs:
                 include:
                     - preset: windows-msvc
                       os: windows-latest
+                      msvc-setup-needed: true
                     - preset: linux-gcc
                       os: ubuntu-latest
                     - preset: linux-clang
@@ -40,17 +41,11 @@ jobs:
               uses: actions/checkout@v6
 
             - name: Setup MSVC environment
-              if: matrix.preset == 'windows-msvc' || matrix.preset == 'windows-clang-cl'
+              if: matrix.msvc-setup-needed
               uses: ilammy/msvc-dev-cmd@v1
 
-            - name: Configure CMake
-              run: cmake --preset=${{ matrix.preset }}
-
-            - name: Build Debug
-              run: cmake --build --preset=${{ matrix.preset }}-debug
-
-            - name: Build Release
-              run: cmake --build --preset=${{ matrix.preset }}-release
+            - name: Run CMake workflow
+              run: cmake --workflow --preset=${{ matrix.preset }}
 
     pr_verification_summary:
         needs: verify_pr
@@ -63,7 +58,7 @@ jobs:
             - name: Check if all jobs succeeded
               run: |
                   if [[ "${{ needs.verify_pr.result }}" != "success" ]]; then
-                    echo "One or more jobs failed"
-                    exit 1
+                      echo "One or more jobs failed"
+                      exit 1
                   fi
                   echo "All jobs completed successfully"
