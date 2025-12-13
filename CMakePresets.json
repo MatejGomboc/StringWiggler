@@ -3,8 +3,29 @@
     "configurePresets": [
         {
             "name": "ninja-multi",
+            "displayName": "Ninja Multi-Config",
             "generator": "Ninja Multi-Config",
             "binaryDir": "${sourceDir}/build"
+        }
+    ],
+    "buildPresets": [
+        {
+            "name": "debug",
+            "displayName": "Debug",
+            "configurePreset": "ninja-multi",
+            "configuration": "Debug"
+        },
+        {
+            "name": "release",
+            "displayName": "Release",
+            "configurePreset": "ninja-multi",
+            "configuration": "Release"
+        },
+        {
+            "name": "relwithdebinfo",
+            "displayName": "Release with Debug Info",
+            "configurePreset": "ninja-multi",
+            "configuration": "RelWithDebInfo"
         }
     ]
 }
