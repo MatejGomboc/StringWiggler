@@ -2,6 +2,18 @@
     "version": 6,
     "configurePresets": [
         {
+            "name": "windows-msvc",
+            "displayName": "Windows MSVC",
+            "generator": "Visual Studio 17 2022",
+            "architecture": "x64",
+            "binaryDir": "${sourceDir}/build",
+            "condition": {
+                "type": "equals",
+                "lhs": "${hostSystemName}",
+                "rhs": "Windows"
+            }
+        },
+        {
             "name": "ninja-multi",
             "displayName": "Ninja Multi-Config",
             "generator": "Ninja Multi-Config",
@@ -10,22 +22,28 @@
     ],
     "buildPresets": [
         {
-            "name": "debug",
-            "displayName": "Debug",
+            "name": "windows-debug",
+            "displayName": "Windows Debug",
+            "configurePreset": "windows-msvc",
+            "configuration": "Debug"
+        },
+        {
+            "name": "windows-release",
+            "displayName": "Windows Release",
+            "configurePreset": "windows-msvc",
+            "configuration": "Release"
+        },
+        {
+            "name": "ninja-debug",
+            "displayName": "Ninja Debug",
             "configurePreset": "ninja-multi",
             "configuration": "Debug"
         },
         {
-            "name": "release",
-            "displayName": "Release",
+            "name": "ninja-release",
+            "displayName": "Ninja Release",
             "configurePreset": "ninja-multi",
             "configuration": "Release"
-        },
-        {
-            "name": "relwithdebinfo",
-            "displayName": "Release with Debug Info",
-            "configurePreset": "ninja-multi",
-            "configuration": "RelWithDebInfo"
         }
     ]
 }
