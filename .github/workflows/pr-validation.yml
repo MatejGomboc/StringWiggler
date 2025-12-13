@@ -10,43 +10,52 @@ on:
     workflow_dispatch:
 
 jobs:
-    linux-gcc:
-        uses: ./.github/workflows/build-linux-gcc.yml
+    verify_pr:
+        timeout-minutes: 30
 
-    linux-clang:
-        uses: ./.github/workflows/build-linux-clang.yml
+        strategy:
+            fail-fast: false
+            max-parallel: 20
 
-    macos-clang:
-        uses: ./.github/workflows/build-macos-clang.yml
+            matrix:
+                include:
+                    - preset: linux-gcc
+                      os: ubuntu-latest
+                    - preset: linux-clang
+                      os: ubuntu-latest
+                    - preset: macos-clang
+                      os: macos-latest
+                    - preset: windows-msvc
+                      os: windows-latest
+                      msvc: true
+                    - preset: windows-clang-cl
+                      os: windows-latest
+                      msvc: true
+                    - preset: windows-mingw
+                      os: windows-latest
 
-    windows-msvc:
-        uses: ./.github/workflows/build-windows-msvc.yml
+        runs-on: ${{ matrix.os }}
 
-    windows-clang-cl:
-        uses: ./.github/workflows/build-windows-clang-cl.yml
+        steps:
+            - name: Checkout repository
+              uses: actions/checkout@v6
 
-    windows-mingw:
-        uses: ./.github/workflows/build-windows-mingw.yml
+            - name: Setup MSVC environment
+              if: matrix.msvc
+              uses: ilammy/msvc-dev-cmd@v1
+
+            - name: Run CMake workflow
+              run: cmake --workflow --preset=${{ matrix.preset }}
 
     pr_verification_summary:
-        needs:
-            - linux-gcc
-            - linux-clang
-            - macos-clang
-            - windows-msvc
-            - windows-clang-cl
-            - windows-mingw
+        needs: verify_pr
         runs-on: ubuntu-latest
         if: always()
+
         steps:
             - name: Check if all jobs succeeded
               run: |
-                  if [[ "${{ needs.linux-gcc.result }}" != "success" || \
-                        "${{ needs.linux-clang.result }}" != "success" || \
-                        "${{ needs.macos-clang.result }}" != "success" || \
-                        "${{ needs.windows-msvc.result }}" != "success" || \
-                        "${{ needs.windows-clang-cl.result }}" != "success" || \
-                        "${{ needs.windows-mingw.result }}" != "success" ]]; then
+                  if [[ "${{ needs.verify_pr.result }}" != "success" ]]; then
                       echo "One or more jobs failed"
                       exit 1
                   fi
