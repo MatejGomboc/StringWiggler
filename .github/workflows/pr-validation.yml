@@ -36,6 +36,10 @@ jobs:
             - name: Checkout Github repository
               uses: actions/checkout@v6
 
+            - name: Setup MSVC environment
+              if: matrix.preset == 'windows-msvc' || matrix.preset == 'windows-clang-cl'
+              uses: ilammy/msvc-dev-cmd@v1
+
             - name: Configure CMake
               run: cmake --preset=${{ matrix.preset }}
 
