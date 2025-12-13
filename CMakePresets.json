@@ -1,5 +1,5 @@
 {
-    "version": 3,
+    "version": 6,
     "configurePresets": [
         {
             "name": "base",
@@ -176,6 +176,62 @@
             "displayName": "Release",
             "configurePreset": "windows-mingw",
             "configuration": "Release"
+        }
+    ],
+    "workflowPresets": [
+        {
+            "name": "linux-gcc",
+            "displayName": "Linux GCC",
+            "steps": [
+                { "type": "configure", "name": "linux-gcc" },
+                { "type": "build", "name": "linux-gcc-debug" },
+                { "type": "build", "name": "linux-gcc-release" }
+            ]
+        },
+        {
+            "name": "linux-clang",
+            "displayName": "Linux Clang",
+            "steps": [
+                { "type": "configure", "name": "linux-clang" },
+                { "type": "build", "name": "linux-clang-debug" },
+                { "type": "build", "name": "linux-clang-release" }
+            ]
+        },
+        {
+            "name": "macos-clang",
+            "displayName": "macOS Apple Clang",
+            "steps": [
+                { "type": "configure", "name": "macos-clang" },
+                { "type": "build", "name": "macos-clang-debug" },
+                { "type": "build", "name": "macos-clang-release" }
+            ]
+        },
+        {
+            "name": "windows-msvc",
+            "displayName": "Windows MSVC",
+            "steps": [
+                { "type": "configure", "name": "windows-msvc" },
+                { "type": "build", "name": "windows-msvc-debug" },
+                { "type": "build", "name": "windows-msvc-release" }
+            ]
+        },
+        {
+            "name": "windows-clang-cl",
+            "displayName": "Windows Clang-CL",
+            "steps": [
+                { "type": "configure", "name": "windows-clang-cl" },
+                { "type": "build", "name": "windows-clang-cl-debug" },
+                { "type": "build", "name": "windows-clang-cl-release" }
+            ]
+        },
+        {
+            "name": "windows-mingw",
+            "displayName": "Windows MinGW-w64",
+            "steps": [
+                { "type": "configure", "name": "windows-mingw" },
+                { "type": "build", "name": "windows-mingw-debug" },
+                { "type": "build", "name": "windows-mingw-release" }
+            ]
         }
     ]
 }
