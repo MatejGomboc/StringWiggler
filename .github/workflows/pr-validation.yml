@@ -19,23 +19,26 @@ jobs:
                 include:
                     - preset: windows-msvc
                       os: windows-latest
-                    # TODO: Add more configurations:
-                    # - preset: linux-gcc
-                    #   os: ubuntu-latest
-                    # - preset: linux-clang
-                    #   os: ubuntu-latest
-                    # - preset: macos-clang
-                    #   os: macos-latest
-                    # - preset: windows-clang-cl
-                    #   os: windows-latest
-                    # - preset: windows-mingw
-                    #   os: windows-latest
+                    - preset: linux-gcc
+                      os: ubuntu-latest
+                    - preset: linux-clang
+                      os: ubuntu-latest
+                    - preset: macos-clang
+                      os: macos-latest
+                    - preset: windows-clang-cl
+                      os: windows-latest
+                    - preset: windows-mingw
+                      os: windows-latest
 
         runs-on: ${{ matrix.os }}
 
         steps:
             - name: Checkout Github repository
               uses: actions/checkout@v6
+
+            - name: Setup MSVC environment
+              if: matrix.preset == 'windows-msvc' || matrix.preset == 'windows-clang-cl'
+              uses: ilammy/msvc-dev-cmd@v1
 
             - name: Configure CMake
               run: cmake --preset=${{ matrix.preset }}
