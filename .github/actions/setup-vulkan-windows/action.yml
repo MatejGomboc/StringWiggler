@@ -8,6 +8,7 @@ inputs:
 
 runs:
     using: composite
+
     steps:
         - name: Cache Vulkan SDK
           id: cache-vulkan
