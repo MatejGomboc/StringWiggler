@@ -41,81 +41,24 @@ jobs:
             - name: Checkout Github repository
               uses: actions/checkout@v6
 
-            # ===== VULKAN SDK CACHING =====
-            - name: Cache Vulkan SDK (Windows)
+            - name: Setup Vulkan SDK (Windows)
               if: runner.os == 'Windows'
-              id: cache-vulkan-windows
-              uses: actions/cache@v4
+              uses: ./.github/actions/setup-vulkan-windows
               with:
-                  path: C:\VulkanSDK\${{ env.VULKAN_SDK_VERSION }}
-                  key: vulkan-sdk-windows-${{ env.VULKAN_SDK_VERSION }}
+                  version: ${{ env.VULKAN_SDK_VERSION }}
 
-            - name: Cache Vulkan SDK (Linux)
+            - name: Setup Vulkan SDK (Linux)
               if: runner.os == 'Linux'
-              id: cache-vulkan-linux
-              uses: actions/cache@v4
+              uses: ./.github/actions/setup-vulkan-linux
               with:
-                  path: ~/VulkanSDK/${{ env.VULKAN_SDK_VERSION }}
-                  key: vulkan-sdk-linux-${{ env.VULKAN_SDK_VERSION }}
+                  version: ${{ env.VULKAN_SDK_VERSION }}
 
-            - name: Cache Vulkan SDK (macOS)
+            - name: Setup Vulkan SDK (macOS)
               if: runner.os == 'macOS'
-              id: cache-vulkan-macos
-              uses: actions/cache@v4
+              uses: ./.github/actions/setup-vulkan-macos
               with:
-                  path: ~/VulkanSDK/${{ env.VULKAN_SDK_VERSION }}
-                  key: vulkan-sdk-macos-${{ env.VULKAN_SDK_VERSION }}
+                  version: ${{ env.VULKAN_SDK_VERSION }}
 
-            # ===== VULKAN SDK INSTALLATION =====
-            - name: Install Vulkan SDK (Linux)
-              if: runner.os == 'Linux' && steps.cache-vulkan-linux.outputs.cache-hit != 'true'
-              run: |
-                  wget -q "https://sdk.lunarg.com/sdk/download/${{ env.VULKAN_SDK_VERSION }}/linux/vulkansdk-linux-x86_64-${{ env.VULKAN_SDK_VERSION }}.tar.xz" -O vulkansdk.tar.xz
-                  mkdir -p ~/VulkanSDK
-                  tar -xf vulkansdk.tar.xz -C ~/VulkanSDK
-
-            - name: Setup Vulkan SDK environment (Linux)
-              if: runner.os == 'Linux'
-              run: |
-                  echo "VULKAN_SDK=$HOME/VulkanSDK/${{ env.VULKAN_SDK_VERSION }}/x86_64" >> $GITHUB_ENV
-                  echo "$HOME/VulkanSDK/${{ env.VULKAN_SDK_VERSION }}/x86_64/bin" >> $GITHUB_PATH
-                  echo "LD_LIBRARY_PATH=$HOME/VulkanSDK/${{ env.VULKAN_SDK_VERSION }}/x86_64/lib:$LD_LIBRARY_PATH" >> $GITHUB_ENV
-
-            - name: Install Vulkan SDK (macOS)
-              if: runner.os == 'macOS' && steps.cache-vulkan-macos.outputs.cache-hit != 'true'
-              run: |
-                  wget -q "https://sdk.lunarg.com/sdk/download/${{ env.VULKAN_SDK_VERSION }}/mac/vulkansdk-macos-${{ env.VULKAN_SDK_VERSION }}.zip" -O vulkansdk.zip
-                  unzip -q vulkansdk.zip
-                  mkdir -p ~/VulkanSDK/${{ env.VULKAN_SDK_VERSION }}
-                  ./InstallVulkan.app/Contents/MacOS/InstallVulkan \
-                      --root ~/VulkanSDK/${{ env.VULKAN_SDK_VERSION }} \
-                      --accept-licenses --default-answer --confirm-command install
-
-            - name: Setup Vulkan SDK environment (macOS)
-              if: runner.os == 'macOS'
-              run: |
-                  echo "VULKAN_SDK=$HOME/VulkanSDK/${{ env.VULKAN_SDK_VERSION }}/macOS" >> $GITHUB_ENV
-                  echo "$HOME/VulkanSDK/${{ env.VULKAN_SDK_VERSION }}/macOS/bin" >> $GITHUB_PATH
-                  echo "DYLD_LIBRARY_PATH=$HOME/VulkanSDK/${{ env.VULKAN_SDK_VERSION }}/macOS/lib:$DYLD_LIBRARY_PATH" >> $GITHUB_ENV
-                  # MoltenVK ICD registration
-                  echo "VK_ICD_FILENAMES=$HOME/VulkanSDK/${{ env.VULKAN_SDK_VERSION }}/macOS/share/vulkan/icd.d/MoltenVK_icd.json" >> $GITHUB_ENV
-                  echo "VK_LAYER_PATH=$HOME/VulkanSDK/${{ env.VULKAN_SDK_VERSION }}/macOS/share/vulkan/explicit_layer.d" >> $GITHUB_ENV
-
-            - name: Install Vulkan SDK (Windows)
-              if: runner.os == 'Windows' && steps.cache-vulkan-windows.outputs.cache-hit != 'true'
-              shell: pwsh
-              run: |
-                  Invoke-WebRequest -Uri "https://sdk.lunarg.com/sdk/download/${{ env.VULKAN_SDK_VERSION }}/windows/VulkanSDK-${{ env.VULKAN_SDK_VERSION }}-Installer.exe" -OutFile VulkanSDK-Installer.exe
-                  Start-Process -FilePath .\VulkanSDK-Installer.exe -ArgumentList "--accept-licenses --default-answer --confirm-command install" -Wait
-
-            - name: Setup Vulkan SDK environment (Windows)
-              if: runner.os == 'Windows'
-              shell: pwsh
-              run: |
-                  echo "VULKAN_SDK=C:\VulkanSDK\${{ env.VULKAN_SDK_VERSION }}" >> $env:GITHUB_ENV
-                  echo "C:\VulkanSDK\${{ env.VULKAN_SDK_VERSION }}\Bin" >> $env:GITHUB_PATH
-
-            # ===== BUILD =====
             - name: Setup MSVC environment
               if: matrix.msvc-setup-needed
               uses: ilammy/msvc-dev-cmd@v1
