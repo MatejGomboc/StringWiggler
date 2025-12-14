@@ -22,9 +22,10 @@ runs:
           run: |
             wget -q "https://sdk.lunarg.com/sdk/download/${{ inputs.version }}/mac/vulkansdk-macos-${{ inputs.version }}.zip" -O vulkansdk.zip
             unzip -q vulkansdk.zip
-            mkdir -p ~/VulkanSDK/${{ inputs.version }}
-            ./vulkansdk-macOS-${{ inputs.version }}.app/Contents/MacOS/InstallVulkan --root ~/VulkanSDK/${{ inputs.version }} --accept-licenses --default-answer --confirm-command install
-            rm -rf vulkansdk.zip vulkansdk-macOS-${{ inputs.version }}.app
+            echo "=== App bundle contents ==="
+            ls -la vulkansdk-macOS-${{ inputs.version }}.app/Contents/MacOS/
+            echo "=== Info.plist ==="
+            cat vulkansdk-macOS-${{ inputs.version }}.app/Contents/Info.plist | head -30
 
         - name: Setup environment
           shell: bash
