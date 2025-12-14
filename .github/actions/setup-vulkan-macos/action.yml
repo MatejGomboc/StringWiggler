@@ -1,0 +1,39 @@
+name: Setup Vulkan SDK (macOS)
+description: Downloads, caches, and configures the LunarG Vulkan SDK on the macOS runner (includes MoltenVK).
+
+inputs:
+    version:
+        description: Vulkan SDK version
+        required: true
+
+runs:
+    using: composite
+
+    steps:
+        - name: Cache Vulkan SDK
+          id: cache-vulkan
+          uses: actions/cache@v4
+          with:
+            path: ~/VulkanSDK/${{ inputs.version }}
+            key: vulkan-sdk-macos-${{ inputs.version }}
+
+        - name: Download and install Vulkan SDK
+          if: steps.cache-vulkan.outputs.cache-hit != 'true'
+          shell: bash
+          run: |
+            wget -q "https://sdk.lunarg.com/sdk/download/${{ inputs.version }}/mac/vulkansdk-macos-${{ inputs.version }}.zip" -O vulkansdk.zip
+            unzip -q vulkansdk.zip
+            mkdir -p ~/VulkanSDK/${{ inputs.version }}
+            ./vulkansdk-macOS-${{ inputs.version }}.app/Contents/MacOS/vulkansdk-macOS-${{ inputs.version }} --root ~/VulkanSDK/${{ inputs.version }} \
+                --accept-licenses --default-answer --confirm-command install
+            rm -rf vulkansdk.zip vulkansdk-macOS-${{ inputs.version }}.app
+
+        - name: Setup environment
+          shell: bash
+          run: |
+            echo "VULKAN_SDK=$HOME/VulkanSDK/${{ inputs.version }}/macOS" >> $GITHUB_ENV
+            echo "$HOME/VulkanSDK/${{ inputs.version }}/macOS/bin" >> $GITHUB_PATH
+            echo "DYLD_LIBRARY_PATH=$HOME/VulkanSDK/${{ inputs.version }}/macOS/lib:$DYLD_LIBRARY_PATH" >> $GITHUB_ENV
+            # MoltenVK ICD registration
+            echo "VK_ICD_FILENAMES=$HOME/VulkanSDK/${{ inputs.version }}/macOS/share/vulkan/icd.d/MoltenVK_icd.json" >> $GITHUB_ENV
+            echo "VK_LAYER_PATH=$HOME/VulkanSDK/${{ inputs.version }}/macOS/share/vulkan/explicit_layer.d" >> $GITHUB_ENV
