@@ -1,0 +1,74 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "CMake: Configure",
+            "type": "shell",
+            "command": "cmake",
+            "args": [
+                "--preset",
+                "${input:configurePreset}"
+            ],
+            "group": "build",
+            "problemMatcher": []
+        },
+        {
+            "label": "CMake: Build Debug",
+            "type": "shell",
+            "command": "cmake",
+            "args": [
+                "--build",
+                "--preset",
+                "${input:buildPresetDebug}"
+            ],
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            },
+            "problemMatcher": [
+                "$gcc",
+                "$msCompile"
+            ]
+        },
+        {
+            "label": "CMake: Configure + Build Debug",
+            "dependsOn": [
+                "CMake: Configure",
+                "CMake: Build Debug"
+            ],
+            "dependsOrder": "sequence",
+            "group": "build",
+            "problemMatcher": []
+        }
+    ],
+    "inputs": [
+        {
+            "id": "configurePreset",
+            "type": "pickString",
+            "description": "Select CMake configure preset",
+            "options": [
+                "windows-msvc",
+                "windows-clang-cl",
+                "windows-mingw",
+                "linux-gcc",
+                "linux-clang",
+                "macos-clang"
+            ],
+            "default": "windows-msvc"
+        },
+        {
+            "id": "buildPresetDebug",
+            "type": "pickString",
+            "description": "Select CMake build preset (Debug)",
+            "options": [
+                "windows-msvc-debug",
+                "windows-clang-cl-debug",
+                "windows-mingw-debug",
+                "linux-gcc-debug",
+                "linux-clang-debug",
+                "macos-clang-debug"
+            ],
+            "default": "windows-msvc-debug"
+        }
+    ]
+}
