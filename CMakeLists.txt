@@ -25,3 +25,6 @@ target_include_directories(${PROJECT_NAME} PRIVATE
 )
 
 target_compile_definitions(${PROJECT_NAME} PRIVATE VK_NO_PROTOTYPES)
+
+# Link dl library on Unix for volk's dlopen/dlsym usage
+target_link_libraries(${PROJECT_NAME} PRIVATE ${CMAKE_DL_LIBS})
