@@ -25,7 +25,10 @@
                 "kind": "build",
                 "isDefault": true
             },
-            "problemMatcher": "$gcc"
+            "problemMatcher": [
+                "$gcc",
+                "$msCompile"
+            ]
         },
         {
             "label": "CMake: Configure + Build Debug",
