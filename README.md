@@ -1,5 +1,9 @@
 # StringWiggler
 
+A cross-platform simulator of a wiggling string. Move your mouse cursor around the screen and watch a string dangle from it, whipping around as you go. A simple, satisfying, utterly pointless app for when you have nothing better to do.
+
+Built with Vulkan for rendering, supporting Windows, Linux (X11/Wayland), and macOS.
+
 ## 📜 Licence
 
 Copyright © 2025 Matej Gomboc
