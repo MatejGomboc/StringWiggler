@@ -55,7 +55,7 @@ AlignConsecutiveBitFields: None
 AlignConsecutiveDeclarations: None
 AlignConsecutiveMacros: None
 AlignEscapedNewlines: Left
-AlignOperands: Align
+AlignOperands: DontAlign
 AlignTrailingComments: false
 
 # Includes
