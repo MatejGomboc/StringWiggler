@@ -103,11 +103,6 @@ target_link_libraries(${PROJECT_NAME} PRIVATE
     ${CMAKE_DL_LIBS}
 )
 
-# MinGW requires -municode for wWinMain entry point
-if(MINGW)
-    target_link_options(${PROJECT_NAME} PRIVATE -municode)
-endif()
-
 if(APPLE)
     set_target_properties(${PROJECT_NAME} PROPERTIES
         MACOSX_BUNDLE_GUI_IDENTIFIER "com.github.MatejGomboc.StringWiggler"
