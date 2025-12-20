@@ -118,14 +118,14 @@ static LRESULT CALLBACK wndProc(HWND window, UINT message, WPARAM wparam, LPARAM
         return 0;
     }
     default:
-        return DefWindowProc(window, message, wparam, lparam);
+        return DefWindowProcA(window, message, wparam, lparam);
     }
 }
 
-int APIENTRY wWinMain(_In_ HINSTANCE app_instance, _In_opt_ HINSTANCE prev_app_instance, _In_ LPWSTR cmd_line, _In_ int cmd_show)
+int APIENTRY WinMain(_In_ HINSTANCE app_instance, _In_opt_ HINSTANCE prev_app_instance, _In_ LPSTR cmd_line, _In_ int cmd_show)
 {
-    UNREFERENCED_PARAMETER(prev_app_instance);
-    UNREFERENCED_PARAMETER(cmd_line);
+    (void)prev_app_instance;
+    (void)cmd_line;
 
     MainWindowUserData main_window_user_data;
 
@@ -134,8 +134,8 @@ int APIENTRY wWinMain(_In_ HINSTANCE app_instance, _In_opt_ HINSTANCE prev_app_i
         return -1;
     }
 
-    WNDCLASSEX main_window_class{};
-    main_window_class.cbSize = sizeof(WNDCLASSEX);
+    WNDCLASSEXA main_window_class{};
+    main_window_class.cbSize = sizeof(WNDCLASSEXA);
     main_window_class.style = CS_HREDRAW | CS_VREDRAW;
     main_window_class.lpfnWndProc = wndProc;
     main_window_class.cbClsExtra = 0;
@@ -145,16 +145,16 @@ int APIENTRY wWinMain(_In_ HINSTANCE app_instance, _In_opt_ HINSTANCE prev_app_i
     main_window_class.hCursor = LoadCursor(nullptr, IDC_ARROW);
     main_window_class.hbrBackground = (HBRUSH)(COLOR_WINDOW + 1);
     main_window_class.lpszMenuName = nullptr;
-    main_window_class.lpszClassName = TEXT("MainWindow");
+    main_window_class.lpszClassName = "MainWindow";
     main_window_class.hIconSm = nullptr;
 
-    if (RegisterClassEx(&main_window_class) == 0) {
+    if (RegisterClassExA(&main_window_class) == 0) {
         main_window_user_data.logger.logWrite("[ERROR] Failed to register main window class. Windows error:" + std::to_string(GetLastError()));
         return GetLastError();
     }
 
-    HWND main_window = CreateWindow(TEXT("MainWindow"), TEXT("StringWiggler"), WS_OVERLAPPEDWINDOW, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, nullptr,
-        nullptr, app_instance, &main_window_user_data);
+    HWND main_window = CreateWindowA("MainWindow", "StringWiggler", WS_OVERLAPPEDWINDOW, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, nullptr, nullptr,
+        app_instance, &main_window_user_data);
 
     if (main_window == nullptr) {
         main_window_user_data.logger.logWrite("[ERROR] Failed to create main window. Windows error:" + std::to_string(GetLastError()));
