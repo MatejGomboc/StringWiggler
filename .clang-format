@@ -96,6 +96,10 @@ SpacesInSquareBrackets: false
 # Braced lists
 Cpp11BracedListStyle: true
 
+# Penalties - prefer filling lines before wrapping
+PenaltyBreakBeforeFirstCallParameter: 1000
+PenaltyBreakOpenParenthesis: 1000
+
 # Other
 BinPackArguments: true
 BinPackParameters: true
