@@ -21,8 +21,18 @@ runs:
               vulkan-sdk-linux-${{ inputs.version }}-refs/heads/main
               vulkan-sdk-linux-${{ inputs.version }}-
 
+        - name: Check if SDK already exists
+          id: check-sdk
+          shell: bash
+          run: |
+            if [ -d "$HOME/VulkanSDK/${{ inputs.version }}/x86_64" ]; then
+              echo "exists=true" >> $GITHUB_OUTPUT
+            else
+              echo "exists=false" >> $GITHUB_OUTPUT
+            fi
+
         - name: Download and extract Vulkan SDK
-          if: steps.cache-vulkan.outputs.cache-hit != 'true'
+          if: steps.check-sdk.outputs.exists != 'true'
           shell: bash
           run: |
             wget -q "https://sdk.lunarg.com/sdk/download/${{ inputs.version }}/linux/vulkansdk-linux-x86_64-${{ inputs.version }}.tar.xz" -O vulkansdk.tar.xz
