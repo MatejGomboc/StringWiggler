@@ -16,9 +16,10 @@ Three decoupled components wired via C-style callbacks in main():
                   onLog   /      \   onLog
                          /        \
                 ┌────────┐        ┌────────┐
-                │ Window │◄──────►│ Engine │
+                │ Window │───────►│ Engine │
                 └────────┘ onDraw └────────┘
                      │    onResize     ▲
+                     │    onClosing    │
                      │                 │
                      │  native handle  │
                      └────────┬────────┘
@@ -108,7 +109,7 @@ public:
     void setOnLog(void(*callback)(const char*, void*), void* user_data);
     void setOnDraw(void(*callback)(void*), void* user_data);
     void setOnResize(void(*callback)(uint32_t, uint32_t, void*), void* user_data);
-    void setOnClose(void(*callback)(void*), void* user_data);
+    void setOnClosing(void(*callback)(void*), void* user_data);  // called before window destruction, Engine should stop rendering
     
     NativeWindowHandle getNativeHandle() const;
     void run();
