@@ -53,7 +53,7 @@ No std::function, no lambdas, no inheritance. Simple, debuggable, explicit.
 
 ### Shutdown Pattern
 
-To avoid circular calls and races during shutdown, each component disconnects its outgoing callbacks before cleaning up internal resources:
+Each component disconnects its outgoing callbacks as the first step in destruction:
 
 ```cpp
 void Engine::destroy() {
@@ -71,11 +71,7 @@ This guarantees:
 - No circular callback chains during destruction
 - No calls to already-destroyed components
 - No need for `isRunning()` checks or coordination flags
-
-Shutdown sequence orchestrated by main.cpp's onClosing handler:
-1. Engine disconnects callbacks, destroys Vulkan resources
-2. Logger closes file
-3. Window completes destruction
+- **Destruction order does not matter** — each component silences itself before touching anything, so they can be destroyed in any order
 
 ### AppContext
 
