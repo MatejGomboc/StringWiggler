@@ -17,17 +17,17 @@ runs:
             path: ~/VulkanSDK/${{ inputs.version }}
             key: vulkan-sdk-macos-${{ inputs.version }}-${{ github.ref }}
             restore-keys: |
-              vulkan-sdk-macos-${{ inputs.version }}-refs/heads/main
-              vulkan-sdk-macos-${{ inputs.version }}-
+                vulkan-sdk-macos-${{ inputs.version }}-refs/heads/main
+                vulkan-sdk-macos-${{ inputs.version }}-
 
         - name: Check if SDK already exists
           id: check-sdk
           shell: bash
           run: |
             if [ -d "$HOME/VulkanSDK/${{ inputs.version }}/macOS" ]; then
-              echo "exists=true" >> $GITHUB_OUTPUT
+                echo "exists=true" >> $GITHUB_OUTPUT
             else
-              echo "exists=false" >> $GITHUB_OUTPUT
+                echo "exists=false" >> $GITHUB_OUTPUT
             fi
 
         - name: Download and install Vulkan SDK

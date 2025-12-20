@@ -18,17 +18,17 @@ runs:
             path: ~/VulkanSDK/${{ inputs.version }}
             key: vulkan-sdk-linux-${{ inputs.version }}-${{ github.ref }}
             restore-keys: |
-              vulkan-sdk-linux-${{ inputs.version }}-refs/heads/main
-              vulkan-sdk-linux-${{ inputs.version }}-
+                vulkan-sdk-linux-${{ inputs.version }}-refs/heads/main
+                vulkan-sdk-linux-${{ inputs.version }}-
 
         - name: Check if SDK already exists
           id: check-sdk
           shell: bash
           run: |
             if [ -d "$HOME/VulkanSDK/${{ inputs.version }}/x86_64" ]; then
-              echo "exists=true" >> $GITHUB_OUTPUT
+                echo "exists=true" >> $GITHUB_OUTPUT
             else
-              echo "exists=false" >> $GITHUB_OUTPUT
+                echo "exists=false" >> $GITHUB_OUTPUT
             fi
 
         - name: Download and extract Vulkan SDK
