@@ -15,6 +15,10 @@ find_package(Vulkan REQUIRED)
 add_executable(${PROJECT_NAME}
     main.cpp
     volk.cpp
+    renderer.cpp
+    renderer.h
+    logger.cpp
+    logger.h
 )
 
 target_compile_features(${PROJECT_NAME} PRIVATE cxx_std_20)
