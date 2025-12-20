@@ -46,6 +46,10 @@ jobs:
             - name: Checkout Github repository
               uses: actions/checkout@v6
 
+            - name: Install X11 development headers (Linux)
+              if: runner.os == 'Linux'
+              run: sudo apt-get update && sudo apt-get install -y libx11-dev
+
             - name: Setup Vulkan SDK (Windows)
               if: runner.os == 'Windows'
               uses: ./.github/actions/setup-vulkan-windows
