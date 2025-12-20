@@ -6,8 +6,8 @@
 #include "renderer.h"
 
 struct MainWindowUserData {
-    Simulator::Logger logger;
-    Simulator::Renderer renderer;
+    Renderer::Logger logger;
+    Renderer::Renderer renderer;
 };
 
 #ifdef DEBUG
@@ -42,7 +42,7 @@ static VkBool32 VKAPI_PTR vulkanDebugCallback(VkDebugUtilsMessageSeverityFlagBit
     }
     type_str += "]";
 
-    auto logger = static_cast<Simulator::Logger*>(user_data);
+    auto logger = static_cast<Renderer::Logger*>(user_data);
 
     logger->logWrite("[LAYER] " + severity_str + " " + type_str + " " + std::string(callback_data->pMessage));
 

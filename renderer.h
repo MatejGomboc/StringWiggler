@@ -4,7 +4,7 @@
 #include <string>
 #include <vector>
 
-namespace Simulator
+namespace Renderer
 {
     class Renderer {
     public:

@@ -1,6 +1,6 @@
 #include "renderer.h"
 
-using namespace Simulator;
+using namespace Renderer;
 
 Renderer::~Renderer()
 {
