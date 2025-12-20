@@ -10,24 +10,29 @@ runs:
     using: composite
 
     steps:
-        - name: Cache Vulkan SDK
-          id: cache-vulkan
+        # On main: restore and save cache. On PRs: restore only (read-only).
+        - name: Restore Vulkan SDK cache
+          if: github.ref != 'refs/heads/main'
+          uses: actions/cache/restore@v4
+          with:
+            path: ~/VulkanSDK/${{ inputs.version }}
+            key: vulkan-sdk-macos-${{ inputs.version }}
+
+        - name: Restore and save Vulkan SDK cache
+          if: github.ref == 'refs/heads/main'
           uses: actions/cache@v4
           with:
             path: ~/VulkanSDK/${{ inputs.version }}
-            key: vulkan-sdk-macos-${{ inputs.version }}-${{ github.ref }}
-            restore-keys: |
-                vulkan-sdk-macos-${{ inputs.version }}-refs/heads/main
-                vulkan-sdk-macos-${{ inputs.version }}-
+            key: vulkan-sdk-macos-${{ inputs.version }}
 
         - name: Check if SDK already exists
           id: check-sdk
           shell: bash
           run: |
             if [ -d "$HOME/VulkanSDK/${{ inputs.version }}/macOS" ]; then
-                echo "exists=true" >> $GITHUB_OUTPUT
+              echo "exists=true" >> $GITHUB_OUTPUT
             else
-                echo "exists=false" >> $GITHUB_OUTPUT
+              echo "exists=false" >> $GITHUB_OUTPUT
             fi
 
         - name: Download and install Vulkan SDK
