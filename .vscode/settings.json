@@ -18,5 +18,5 @@
         "editor.defaultFormatter": "xaver.clang-format"
     },
     "cmake.configureOnOpen": false,
-    "clang-format.fallbackStyle": "LLVM"
+    "clang-format.fallbackStyle": "Visual Studio"
 }
