@@ -29,9 +29,9 @@ jobs:
                     - preset: windows-msvc
                       os: windows-latest
                       msvc-setup-needed: true
-                    - preset: linux-gcc
+                    - preset: linux-x11-gcc
                       os: ubuntu-latest
-                    - preset: linux-clang
+                    - preset: linux-x11-clang
                       os: ubuntu-latest
                     - preset: macos-clang
                       os: macos-latest
