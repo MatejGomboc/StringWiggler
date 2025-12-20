@@ -9,14 +9,24 @@ A cross-platform simulator of a wiggling string. User moves the mouse cursor aro
 Three decoupled components wired via C-style callbacks in main():
 
 ```
-┌─────────┐     callback      ┌────────┐     callback      ┌────────┐
-│  Window │ ───────────────►  │ Logger │  ◄─────────────── │ Engine │
-└─────────┘                   └────────┘                   └────────┘
-     │                                                          ▲
-     │                        ┌──────────┐                      │
-     └───────────────────────►│ main.cpp │──────────────────────┘
-           native handle      │ (wiring) │     native handle
-                              └──────────┘
+                         ┌────────┐
+                         │ Logger │
+                         └────────┘
+                           ▲    ▲
+                  onLog   /      \   onLog
+                         /        \
+                ┌────────┐        ┌────────┐
+                │ Window │◄──────►│ Engine │
+                └────────┘ onDraw └────────┘
+                     │    onResize     ▲
+                     │                 │
+                     │  native handle  │
+                     └────────┬────────┘
+                              │
+                       ┌──────────┐
+                       │ main.cpp │
+                       │ (wiring) │
+                       └──────────┘
 ```
 
 - **Logger** — receives strings, writes to file. Knows nothing about Window or Engine.
