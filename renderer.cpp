@@ -1,5 +1,13 @@
 #include "renderer.h"
 
+#if defined(_WIN32)
+#include <windows.h>
+#elif defined(__linux__)
+#include <X11/Xlib.h>
+#elif defined(__APPLE__)
+// Metal types are forward-declared, no header needed here
+#endif
+
 using namespace Engine;
 
 Renderer::~Renderer()
@@ -7,7 +15,49 @@ Renderer::~Renderer()
     destroy();
 }
 
-bool Renderer::init(std::string& out_error_message, HINSTANCE app_instance, HWND window
+bool Renderer::createSurface(const NativeWindowHandle& window_handle, std::string& out_error_message)
+{
+    VkResult vk_error;
+
+#if defined(_WIN32)
+    VkWin32SurfaceCreateInfoKHR create_info{};
+    create_info.sType = VK_STRUCTURE_TYPE_WIN32_SURFACE_CREATE_INFO_KHR;
+    create_info.pNext = nullptr;
+    create_info.flags = 0;
+    create_info.hinstance = static_cast<HINSTANCE>(window_handle.hinstance);
+    create_info.hwnd = static_cast<HWND>(window_handle.hwnd);
+
+    vk_error = vkCreateWin32SurfaceKHR(m_vk_instance, &create_info, nullptr, &m_vk_surface);
+
+#elif defined(__linux__)
+    VkXlibSurfaceCreateInfoKHR create_info{};
+    create_info.sType = VK_STRUCTURE_TYPE_XLIB_SURFACE_CREATE_INFO_KHR;
+    create_info.pNext = nullptr;
+    create_info.flags = 0;
+    create_info.dpy = static_cast<Display*>(window_handle.display);
+    create_info.window = static_cast<Window>(window_handle.window);
+
+    vk_error = vkCreateXlibSurfaceKHR(m_vk_instance, &create_info, nullptr, &m_vk_surface);
+
+#elif defined(__APPLE__)
+    VkMetalSurfaceCreateInfoEXT create_info{};
+    create_info.sType = VK_STRUCTURE_TYPE_METAL_SURFACE_CREATE_INFO_EXT;
+    create_info.pNext = nullptr;
+    create_info.flags = 0;
+    create_info.pLayer = window_handle.layer;
+
+    vk_error = vkCreateMetalSurfaceEXT(m_vk_instance, &create_info, nullptr, &m_vk_surface);
+#endif
+
+    if (vk_error != VK_SUCCESS) {
+        out_error_message = "Failed to create Vulkan rendering surface. VK error:" + std::to_string(vk_error) + ".";
+        return false;
+    }
+
+    return true;
+}
+
+bool Renderer::init(std::string& out_error_message, const NativeWindowHandle& window_handle
 #ifdef DEBUG
     ,
     PFN_vkDebugUtilsMessengerCallbackEXT vulkan_debug_callback, void* vulkan_debug_callback_user_data
@@ -89,7 +139,15 @@ bool Renderer::init(std::string& out_error_message, HINSTANCE app_instance, HWND
 
     /**************************************************************************************/
 
-    std::vector<const char*> instance_extensions{VK_KHR_SURFACE_EXTENSION_NAME, VK_KHR_WIN32_SURFACE_EXTENSION_NAME
+    std::vector<const char*> instance_extensions{VK_KHR_SURFACE_EXTENSION_NAME,
+#if defined(_WIN32)
+        VK_KHR_WIN32_SURFACE_EXTENSION_NAME
+#elif defined(__linux__)
+        VK_KHR_XLIB_SURFACE_EXTENSION_NAME
+#elif defined(__APPLE__)
+        VK_EXT_METAL_SURFACE_EXTENSION_NAME,
+        VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME
+#endif
 #ifdef DEBUG
         ,
         VK_EXT_DEBUG_UTILS_EXTENSION_NAME
@@ -164,7 +222,11 @@ bool Renderer::init(std::string& out_error_message, HINSTANCE app_instance, HWND
 #else
     inst_info.pNext = nullptr;
 #endif
+#if defined(__APPLE__)
+    inst_info.flags = VK_INSTANCE_CREATE_ENUMERATE_PORTABILITY_BIT_KHR;
+#else
     inst_info.flags = 0;
+#endif
     inst_info.pApplicationInfo = &app_info;
 #ifdef DEBUG
     inst_info.enabledLayerCount = static_cast<uint32_t>(instance_layers.size());
@@ -198,16 +260,7 @@ bool Renderer::init(std::string& out_error_message, HINSTANCE app_instance, HWND
 
     /**************************************************************************************/
 
-    VkWin32SurfaceCreateInfoKHR create_info{};
-    create_info.sType = VK_STRUCTURE_TYPE_WIN32_SURFACE_CREATE_INFO_KHR;
-    create_info.pNext = nullptr;
-    create_info.flags = 0;
-    create_info.hinstance = app_instance;
-    create_info.hwnd = window;
-
-    vk_error = vkCreateWin32SurfaceKHR(m_vk_instance, &create_info, nullptr, &m_vk_surface);
-    if (vk_error != VK_SUCCESS) {
-        out_error_message = "Failed to create Vulkan rendering surface. VK error:" + std::to_string(vk_error) + ".";
+    if (!createSurface(window_handle, out_error_message)) {
         destroy();
         return false;
     }
