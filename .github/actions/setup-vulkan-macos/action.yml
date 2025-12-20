@@ -15,7 +15,10 @@ runs:
           uses: actions/cache@v4
           with:
             path: ~/VulkanSDK/${{ inputs.version }}
-            key: vulkan-sdk-macos-${{ inputs.version }}
+            key: vulkan-sdk-macos-${{ inputs.version }}-${{ github.ref }}
+            restore-keys: |
+              vulkan-sdk-macos-${{ inputs.version }}-refs/heads/main
+              vulkan-sdk-macos-${{ inputs.version }}-
 
         - name: Download and install Vulkan SDK
           if: steps.cache-vulkan.outputs.cache-hit != 'true'
