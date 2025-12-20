@@ -4,6 +4,12 @@
 #include <string>
 #include <vector>
 
+// Forward declarations for Windows types
+struct HINSTANCE__;
+typedef HINSTANCE__* HINSTANCE;
+struct HWND__;
+typedef HWND__* HWND;
+
 namespace Renderer
 {
     class Renderer {
