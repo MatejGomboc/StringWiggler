@@ -18,6 +18,5 @@
         "editor.defaultFormatter": "xaver.clang-format"
     },
     "cmake.configureOnOpen": false,
-    "clang-format.executable": "${env:VULKAN_SDK}/Bin/clang-format.exe",
     "clang-format.fallbackStyle": "Visual Studio"
 }
