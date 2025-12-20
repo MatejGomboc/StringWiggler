@@ -1,11 +1,14 @@
-name: CI - PR Validation
+name: CI
 
 permissions:
     contents: read
 
 on:
+    push:
+        branches: [main] # Populate cache on main after PR merges.
+
     pull_request:
-        branches: ["**"] # Run PR validation on any branch.
+        branches: ["**"] # Run validation on any PR.
 
     workflow_dispatch: # Manual trigger option.
 
@@ -13,7 +16,7 @@ env:
     VULKAN_SDK_VERSION: "1.4.335.0"
 
 jobs:
-    verify_pr:
+    build:
         timeout-minutes: 30
 
         strategy:
@@ -68,8 +71,8 @@ jobs:
             - name: Run CMake workflow
               run: cmake --workflow --preset=${{ matrix.preset }}
 
-    pr_verification_summary:
-        needs: verify_pr
+    build_summary:
+        needs: build
 
         runs-on: ubuntu-latest
 
@@ -78,7 +81,7 @@ jobs:
         steps:
             - name: Check if all jobs succeeded
               run: |
-                  if [[ "${{ needs.verify_pr.result }}" != "success" ]]; then
+                  if [[ "${{ needs.build.result }}" != "success" ]]; then
                       echo "One or more jobs failed"
                       exit 1
                   fi
