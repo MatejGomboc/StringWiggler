@@ -25,7 +25,7 @@ runs:
             unzip -q vulkansdk.zip
             mkdir -p ~/VulkanSDK/${{ inputs.version }}
             ./vulkansdk-macOS-${{ inputs.version }}.app/Contents/MacOS/vulkansdk-macOS-${{ inputs.version }} --root ~/VulkanSDK/${{ inputs.version }} \
-                --accept-licenses --default-answer --confirm-command install
+                --accept-licenses --default-answer --confirm-command install com.lunarg.vulkan.volk
             rm -rf vulkansdk.zip vulkansdk-macOS-${{ inputs.version }}.app
 
         - name: Setup environment
