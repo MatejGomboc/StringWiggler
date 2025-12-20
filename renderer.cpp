@@ -42,9 +42,11 @@ bool Renderer::init(std::string& out_error_message, HINSTANCE app_instance, HWND
 
     /**************************************************************************************/
 
+    VkResult vk_error;
+
 #ifdef DEBUG
     uint32_t supported_instance_layers_count;
-    VkResult vk_error = vkEnumerateInstanceLayerProperties(&supported_instance_layers_count, nullptr);
+    vk_error = vkEnumerateInstanceLayerProperties(&supported_instance_layers_count, nullptr);
     if (vk_error != VK_SUCCESS) {
         out_error_message = "Failed to enumerate Vulkan instance layers. VK error:" + std::to_string(vk_error) + ".";
         destroy();
@@ -275,9 +277,11 @@ bool Renderer::getSupportedPhysicalDevices(std::vector<VkPhysicalDevice>& out_su
 
         /**************************************************************************************/
 
+        bool device_supported = true;
+
 #ifdef DEBUG
         uint32_t supported_device_layers_count;
-        VkResult vk_error = vkEnumerateDeviceLayerProperties(physical_device, &supported_device_layers_count, nullptr);
+        vk_error = vkEnumerateDeviceLayerProperties(physical_device, &supported_device_layers_count, nullptr);
         if (vk_error != VK_SUCCESS) {
             out_error_message = "Failed to enumerate layers for Vulkan physical device: \"" + std::string(physical_device_properties.deviceName) +
                 "\". VK error:" + std::to_string(vk_error) + ".";
@@ -297,8 +301,6 @@ bool Renderer::getSupportedPhysicalDevices(std::vector<VkPhysicalDevice>& out_su
             return false;
         }
 
-        bool device_supported = true;
-
         std::vector<const char*> device_layers{VK_LAYER_KHRONOS_VALIDATION_NAME};
 
         for (const char* const device_layer : device_layers) {
@@ -317,7 +319,7 @@ bool Renderer::getSupportedPhysicalDevices(std::vector<VkPhysicalDevice>& out_su
         }
 
         if (!device_supported) {
-            break;
+            continue;
         }
 #endif
 
@@ -393,11 +395,13 @@ bool Renderer::createLogicalDevice(const VkPhysicalDevice& physical_device, std:
 
     /**************************************************************************************/
 
+    VkResult vk_error;
+
 #ifdef DEBUG
     std::vector<const char*> device_layers{VK_LAYER_KHRONOS_VALIDATION_NAME};
 
     uint32_t supported_device_layers_count;
-    VkResult vk_error = vkEnumerateDeviceLayerProperties(physical_device, &supported_device_layers_count, nullptr);
+    vk_error = vkEnumerateDeviceLayerProperties(physical_device, &supported_device_layers_count, nullptr);
     if (vk_error != VK_SUCCESS) {
         out_error_message = "Failed to enumerate layers for Vulkan physical device: \"" + std::string(physical_device_properties.deviceName) +
             "\". VK error:" + std::to_string(vk_error) + ".";
