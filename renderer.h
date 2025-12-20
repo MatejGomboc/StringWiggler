@@ -4,12 +4,6 @@
 #include <string>
 #include <vector>
 
-// Forward declarations for Windows types (only if windows.h not already included)
-struct HINSTANCE__;
-typedef HINSTANCE__* HINSTANCE;
-struct HWND__;
-typedef HWND__* HWND;
-
 namespace Engine
 {
     class Renderer {
