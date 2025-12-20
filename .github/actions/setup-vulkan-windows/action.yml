@@ -20,8 +20,18 @@ runs:
               vulkan-sdk-windows-${{ inputs.version }}-refs/heads/main
               vulkan-sdk-windows-${{ inputs.version }}-
 
+        - name: Check if SDK already exists
+          id: check-sdk
+          shell: pwsh
+          run: |
+            if (Test-Path "C:\VulkanSDK\${{ inputs.version }}\Bin") {
+              echo "exists=true" >> $env:GITHUB_OUTPUT
+            } else {
+              echo "exists=false" >> $env:GITHUB_OUTPUT
+            }
+
         - name: Download and install Vulkan SDK
-          if: steps.cache-vulkan.outputs.cache-hit != 'true'
+          if: steps.check-sdk.outputs.exists != 'true'
           shell: pwsh
           run: |
             Invoke-WebRequest -Uri "https://sdk.lunarg.com/sdk/download/${{ inputs.version }}/windows/vulkansdk-windows-X64-${{ inputs.version }}.exe" -OutFile VulkanSDK-Installer.exe
