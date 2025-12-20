@@ -346,5 +346,5 @@ Internal structure:
 
 ## Future
 
-- Split into three independent libraries
+- Split Window, Engine and Logger into three independent libraries
 - Engine becomes general purpose physics visualization
