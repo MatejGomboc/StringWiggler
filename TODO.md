@@ -61,6 +61,27 @@ Single instance of each component, but internal threads exist:
 
 This means shutdown can take time — GPU must finish, log queue must drain.
 
+### Error Handling
+
+Fail fast, die gracefully. Every runtime error is treated as fatal:
+
+```cpp
+void Engine::render(...) {
+    if (m_dying) return;
+    
+    VkResult result = vkSomething(...);
+    if (result != VK_SUCCESS) {
+        // Error = immediate self-destruction
+        destroy();  // triggers onIsAboutToStop → cleanup → onHasStopped
+        return;
+    }
+}
+```
+
+No partial recovery states. No error codes bubbling up. Component encounters error → component initiates its own death → others get notified via `onIsAboutToStop` / `onHasStopped` and can react accordingly.
+
+This keeps the code simple — no complex error recovery paths, no inconsistent states to manage.
+
 ### Shutdown Pattern
 
 Each component uses a `m_dying` flag and a two-phase notification protocol:
