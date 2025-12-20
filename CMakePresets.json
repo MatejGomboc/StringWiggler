@@ -50,6 +50,20 @@
             }
         },
         {
+            "name": "macos-gcc",
+            "displayName": "macOS GCC (Homebrew)",
+            "inherits": "base",
+            "condition": {
+                "type": "equals",
+                "lhs": "${hostSystemName}",
+                "rhs": "Darwin"
+            },
+            "cacheVariables": {
+                "CMAKE_C_COMPILER": "gcc-14",
+                "CMAKE_CXX_COMPILER": "g++-14"
+            }
+        },
+        {
             "name": "windows-msvc",
             "displayName": "Windows MSVC",
             "inherits": "base",
@@ -142,6 +156,18 @@
             "configuration": "Release"
         },
         {
+            "name": "macos-gcc-debug",
+            "displayName": "Debug",
+            "configurePreset": "macos-gcc",
+            "configuration": "Debug"
+        },
+        {
+            "name": "macos-gcc-release",
+            "displayName": "Release",
+            "configurePreset": "macos-gcc",
+            "configuration": "Release"
+        },
+        {
             "name": "windows-msvc-debug",
             "displayName": "Debug",
             "configurePreset": "windows-msvc",
@@ -230,6 +256,24 @@
                 {
                     "type": "build",
                     "name": "macos-clang-release"
+                }
+            ]
+        },
+        {
+            "name": "macos-gcc",
+            "displayName": "macOS GCC (Homebrew)",
+            "steps": [
+                {
+                    "type": "configure",
+                    "name": "macos-gcc"
+                },
+                {
+                    "type": "build",
+                    "name": "macos-gcc-debug"
+                },
+                {
+                    "type": "build",
+                    "name": "macos-gcc-release"
                 }
             ]
         },
