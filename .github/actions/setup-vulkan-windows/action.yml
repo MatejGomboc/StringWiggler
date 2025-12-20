@@ -17,17 +17,17 @@ runs:
             path: C:\VulkanSDK\${{ inputs.version }}
             key: vulkan-sdk-windows-${{ inputs.version }}-${{ github.ref }}
             restore-keys: |
-              vulkan-sdk-windows-${{ inputs.version }}-refs/heads/main
-              vulkan-sdk-windows-${{ inputs.version }}-
+                vulkan-sdk-windows-${{ inputs.version }}-refs/heads/main
+                vulkan-sdk-windows-${{ inputs.version }}-
 
         - name: Check if SDK already exists
           id: check-sdk
           shell: pwsh
           run: |
             if (Test-Path "C:\VulkanSDK\${{ inputs.version }}\Bin") {
-              echo "exists=true" >> $env:GITHUB_OUTPUT
+                echo "exists=true" >> $env:GITHUB_OUTPUT
             } else {
-              echo "exists=false" >> $env:GITHUB_OUTPUT
+                echo "exists=false" >> $env:GITHUB_OUTPUT
             }
 
         - name: Download and install Vulkan SDK
