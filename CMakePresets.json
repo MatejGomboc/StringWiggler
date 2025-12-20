@@ -12,8 +12,8 @@
             }
         },
         {
-            "name": "linux-gcc",
-            "displayName": "Linux GCC",
+            "name": "linux-x11-gcc",
+            "displayName": "Linux X11 GCC",
             "inherits": "base",
             "condition": {
                 "type": "equals",
@@ -22,12 +22,13 @@
             },
             "cacheVariables": {
                 "CMAKE_C_COMPILER": "gcc",
-                "CMAKE_CXX_COMPILER": "g++"
+                "CMAKE_CXX_COMPILER": "g++",
+                "LINUX_DISPLAY_SERVER": "X11"
             }
         },
         {
-            "name": "linux-clang",
-            "displayName": "Linux Clang",
+            "name": "linux-x11-clang",
+            "displayName": "Linux X11 Clang",
             "inherits": "base",
             "condition": {
                 "type": "equals",
@@ -36,7 +37,38 @@
             },
             "cacheVariables": {
                 "CMAKE_C_COMPILER": "clang",
-                "CMAKE_CXX_COMPILER": "clang++"
+                "CMAKE_CXX_COMPILER": "clang++",
+                "LINUX_DISPLAY_SERVER": "X11"
+            }
+        },
+        {
+            "name": "linux-wayland-gcc",
+            "displayName": "Linux Wayland GCC",
+            "inherits": "base",
+            "condition": {
+                "type": "equals",
+                "lhs": "${hostSystemName}",
+                "rhs": "Linux"
+            },
+            "cacheVariables": {
+                "CMAKE_C_COMPILER": "gcc",
+                "CMAKE_CXX_COMPILER": "g++",
+                "LINUX_DISPLAY_SERVER": "Wayland"
+            }
+        },
+        {
+            "name": "linux-wayland-clang",
+            "displayName": "Linux Wayland Clang",
+            "inherits": "base",
+            "condition": {
+                "type": "equals",
+                "lhs": "${hostSystemName}",
+                "rhs": "Linux"
+            },
+            "cacheVariables": {
+                "CMAKE_C_COMPILER": "clang",
+                "CMAKE_CXX_COMPILER": "clang++",
+                "LINUX_DISPLAY_SERVER": "Wayland"
             }
         },
         {
@@ -106,27 +138,51 @@
     ],
     "buildPresets": [
         {
-            "name": "linux-gcc-debug",
+            "name": "linux-x11-gcc-debug",
             "displayName": "Debug",
-            "configurePreset": "linux-gcc",
+            "configurePreset": "linux-x11-gcc",
             "configuration": "Debug"
         },
         {
-            "name": "linux-gcc-release",
+            "name": "linux-x11-gcc-release",
             "displayName": "Release",
-            "configurePreset": "linux-gcc",
+            "configurePreset": "linux-x11-gcc",
             "configuration": "Release"
         },
         {
-            "name": "linux-clang-debug",
+            "name": "linux-x11-clang-debug",
             "displayName": "Debug",
-            "configurePreset": "linux-clang",
+            "configurePreset": "linux-x11-clang",
             "configuration": "Debug"
         },
         {
-            "name": "linux-clang-release",
+            "name": "linux-x11-clang-release",
             "displayName": "Release",
-            "configurePreset": "linux-clang",
+            "configurePreset": "linux-x11-clang",
+            "configuration": "Release"
+        },
+        {
+            "name": "linux-wayland-gcc-debug",
+            "displayName": "Debug",
+            "configurePreset": "linux-wayland-gcc",
+            "configuration": "Debug"
+        },
+        {
+            "name": "linux-wayland-gcc-release",
+            "displayName": "Release",
+            "configurePreset": "linux-wayland-gcc",
+            "configuration": "Release"
+        },
+        {
+            "name": "linux-wayland-clang-debug",
+            "displayName": "Debug",
+            "configurePreset": "linux-wayland-clang",
+            "configuration": "Debug"
+        },
+        {
+            "name": "linux-wayland-clang-release",
+            "displayName": "Release",
+            "configurePreset": "linux-wayland-clang",
             "configuration": "Release"
         },
         {
@@ -180,38 +236,74 @@
     ],
     "workflowPresets": [
         {
-            "name": "linux-gcc",
-            "displayName": "Linux GCC",
+            "name": "linux-x11-gcc",
+            "displayName": "Linux X11 GCC",
             "steps": [
                 {
                     "type": "configure",
-                    "name": "linux-gcc"
+                    "name": "linux-x11-gcc"
                 },
                 {
                     "type": "build",
-                    "name": "linux-gcc-debug"
+                    "name": "linux-x11-gcc-debug"
                 },
                 {
                     "type": "build",
-                    "name": "linux-gcc-release"
+                    "name": "linux-x11-gcc-release"
                 }
             ]
         },
         {
-            "name": "linux-clang",
-            "displayName": "Linux Clang",
+            "name": "linux-x11-clang",
+            "displayName": "Linux X11 Clang",
             "steps": [
                 {
                     "type": "configure",
-                    "name": "linux-clang"
+                    "name": "linux-x11-clang"
                 },
                 {
                     "type": "build",
-                    "name": "linux-clang-debug"
+                    "name": "linux-x11-clang-debug"
                 },
                 {
                     "type": "build",
-                    "name": "linux-clang-release"
+                    "name": "linux-x11-clang-release"
+                }
+            ]
+        },
+        {
+            "name": "linux-wayland-gcc",
+            "displayName": "Linux Wayland GCC",
+            "steps": [
+                {
+                    "type": "configure",
+                    "name": "linux-wayland-gcc"
+                },
+                {
+                    "type": "build",
+                    "name": "linux-wayland-gcc-debug"
+                },
+                {
+                    "type": "build",
+                    "name": "linux-wayland-gcc-release"
+                }
+            ]
+        },
+        {
+            "name": "linux-wayland-clang",
+            "displayName": "Linux Wayland Clang",
+            "steps": [
+                {
+                    "type": "configure",
+                    "name": "linux-wayland-clang"
+                },
+                {
+                    "type": "build",
+                    "name": "linux-wayland-clang-debug"
+                },
+                {
+                    "type": "build",
+                    "name": "linux-wayland-clang-release"
                 }
             ]
         },
