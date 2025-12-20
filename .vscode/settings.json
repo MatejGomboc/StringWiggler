@@ -3,6 +3,7 @@
     "editor.tabSize": 4,
     "editor.trimAutoWhitespace": true,
     "editor.defaultFormatter": "xaver.clang-format",
+    "editor.rulers": [150],
     "files.trimTrailingWhitespace": true,
     "files.insertFinalNewline": true,
     "files.encoding": "utf8",
