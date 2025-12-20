@@ -18,8 +18,7 @@ Three decoupled components wired via C-style callbacks in main():
                 ┌────────┐        ┌────────┐
                 │ Window │───────►│ Engine │
                 └────────┘ onDraw └────────┘
-                     │    onResize     ▲
-                     │    onClosing    │
+                     │    onClosing    ▲
                      │                 │
                      │  native handle  │
                      └────────┬────────┘
@@ -34,6 +33,14 @@ Three decoupled components wired via C-style callbacks in main():
 - **Window** — creates native window, pumps events, fires callbacks. Knows nothing about Vulkan.
 - **Engine** — Vulkan rendering. Receives native handle, renders frames. Knows nothing about windowing.
 - **main.cpp** — composition root, wires everything together via callbacks.
+
+### Initialization Order
+
+Components must be initialized in this order:
+
+1. **Logger** — so others can log during their init
+2. **Window** — creates native window, provides handle
+3. **Engine** — receives handle from Window to create Vulkan surface
 
 ### Callback Style
 
@@ -81,6 +88,38 @@ void Engine::render(...) {
 No partial recovery states. No error codes bubbling up. Component encounters error → component initiates its own death → others get notified via `onIsAboutToStop` / `onHasStopped` and can react accordingly.
 
 This keeps the code simple — no complex error recovery paths, no inconsistent states to manage.
+
+### Resize Handling
+
+Deferred and Vulkan-driven — let Vulkan tell us when swapchain is stale:
+
+```cpp
+void Engine::render(...) {
+    if (m_dying) return;
+    
+    VkResult result = vkAcquireNextImageKHR(...);
+    
+    if (result == VK_ERROR_OUT_OF_DATE_KHR) {
+        recreateSwapchain();  // query current window size internally
+        return;  // skip this frame, try next
+    }
+    
+    // ... render ...
+    
+    result = vkQueuePresentKHR(...);
+    
+    if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR) {
+        recreateSwapchain();
+    }
+}
+```
+
+**Benefits:**
+- Simple — no onResize callback needed
+- Robust — handles all cases (resize, minimize, display change)
+- Lazy — only recreate when actually needed
+
+**Minimized window (0x0):** Skip frame entirely — can't create swapchain with zero dimensions.
 
 ### Shutdown Pattern
 
@@ -168,10 +207,16 @@ logger.stop() called
 Simple struct in main.cpp for callbacks that need multiple things:
 
 ```cpp
+struct Point2D {
+    float x;
+    float y;
+};
+
 struct AppContext {
-    Engine engine;
     Logger logger;
-    // later: std::vector<Point2D> line_points;
+    Window window;
+    Engine engine;
+    std::vector<Point2D> line_points;
 };
 ```
 
@@ -224,7 +269,6 @@ class Window {
 public:
     void setOnLog(void(*callback)(const char*, void*), void* user_data);
     void setOnDraw(void(*callback)(void*), void* user_data);
-    void setOnResize(void(*callback)(uint32_t, uint32_t, void*), void* user_data);
     void setOnClosing(void(*callback)(void*), void* user_data);
     void setOnIsAboutToStop(void(*callback)(void*), void* user_data);
     void setOnHasStopped(void(*callback)(void*), void* user_data);
