@@ -145,8 +145,7 @@ bool Renderer::init(std::string& out_error_message, const NativeWindowHandle& wi
 #elif defined(__linux__)
         VK_KHR_XLIB_SURFACE_EXTENSION_NAME
 #elif defined(__APPLE__)
-        VK_EXT_METAL_SURFACE_EXTENSION_NAME,
-        VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME
+        VK_EXT_METAL_SURFACE_EXTENSION_NAME, VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME
 #endif
 #ifdef DEBUG
         ,

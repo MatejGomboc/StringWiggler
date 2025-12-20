@@ -71,8 +71,8 @@ static bool createWindow(AppData& app, int width, int height, const char* title)
     window_attrs.border_pixel = BlackPixel(app.display, screen);
     window_attrs.event_mask = ExposureMask | KeyPressMask | KeyReleaseMask | ButtonPressMask | ButtonReleaseMask | PointerMotionMask | StructureNotifyMask;
 
-    app.window = XCreateWindow(app.display, root, 0, 0, width, height, 0, CopyFromParent, InputOutput, CopyFromParent,
-        CWBackPixel | CWBorderPixel | CWEventMask, &window_attrs);
+    app.window = XCreateWindow(app.display, root, 0, 0, width, height, 0, CopyFromParent, InputOutput, CopyFromParent, CWBackPixel | CWBorderPixel | CWEventMask,
+        &window_attrs);
 
     if (app.window == 0) {
         app.logger.logWrite("[ERROR] Failed to create X11 window.");
