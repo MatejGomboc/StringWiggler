@@ -51,6 +51,32 @@ engine.setOnLog(onLog, &logger);
 
 No std::function, no lambdas, no inheritance. Simple, debuggable, explicit.
 
+### Shutdown Pattern
+
+To avoid circular calls and races during shutdown, each component disconnects its outgoing callbacks before cleaning up internal resources:
+
+```cpp
+void Engine::destroy() {
+    // 1. Silence outgoing calls first
+    m_on_log = nullptr;
+    m_on_log_user_data = nullptr;
+    
+    // 2. Now safe to clean up (no callbacks will fire)
+    vkDestroyDevice(m_device, nullptr);
+    // ...
+}
+```
+
+This guarantees:
+- No circular callback chains during destruction
+- No calls to already-destroyed components
+- No need for `isRunning()` checks or coordination flags
+
+Shutdown sequence orchestrated by main.cpp's onClosing handler:
+1. Engine disconnects callbacks, destroys Vulkan resources
+2. Logger closes file
+3. Window completes destruction
+
 ### AppContext
 
 Simple struct in main.cpp for callbacks that need multiple things:
@@ -109,7 +135,7 @@ public:
     void setOnLog(void(*callback)(const char*, void*), void* user_data);
     void setOnDraw(void(*callback)(void*), void* user_data);
     void setOnResize(void(*callback)(uint32_t, uint32_t, void*), void* user_data);
-    void setOnClosing(void(*callback)(void*), void* user_data);  // called before window destruction, Engine should stop rendering
+    void setOnClosing(void(*callback)(void*), void* user_data);  // called before window destruction
     
     NativeWindowHandle getNativeHandle() const;
     void run();
