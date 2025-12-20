@@ -51,6 +51,16 @@ engine.setOnLog(onLog, &logger);
 
 No std::function, no lambdas, no inheritance. Simple, debuggable, explicit.
 
+### Threading Model
+
+Single instance of each component, but internal threads exist:
+
+- **Window** — runs on main thread, pumps native event loop
+- **Engine** — called from main thread, but internally waits on GPU (`vkDeviceWaitIdle`)
+- **Logger** — has internal writer thread doing async file I/O (main thread queues messages, writer thread flushes to disk)
+
+This means shutdown can take time — GPU must finish, log queue must drain.
+
 ### Shutdown Pattern
 
 Each component uses a `m_dying` flag and a two-phase notification protocol:
@@ -60,7 +70,7 @@ void Engine::destroy() {
     // 1. Prevent re-entry (atomic for thread safety)
     if (m_dying.exchange(true)) return;
     
-    // 2. "I'm about to stop" - others can prepare
+    // 2. "Stop sending me work!"
     if (m_on_is_about_to_stop) {
         m_on_is_about_to_stop(m_on_is_about_to_stop_user_data);
     }
@@ -69,12 +79,12 @@ void Engine::destroy() {
     m_on_log = nullptr;
     m_on_is_about_to_stop = nullptr;
     
-    // 4. Clean up resources (might take time)
+    // 4. Clean up resources (might take time - waiting on GPU)
     vkDeviceWaitIdle(m_device);
     vkDestroyDevice(m_device, nullptr);
     // ...
     
-    // 5. "I have stopped" - safe for others to proceed with their own destruction
+    // 5. "I'm truly dead now"
     if (m_on_has_stopped) {
         m_on_has_stopped(m_on_has_stopped_user_data);
     }
@@ -92,27 +102,38 @@ void Engine::render(...) {
 ```
 
 **Two-phase notifications:**
-- `onIsAboutToStop` — fired before cleanup, callbacks still connected, others can prepare
-- `onHasStopped` — fired after cleanup complete, safe for dependents to proceed with their own destruction
+- `onIsAboutToStop` — "Stop sending me work!" (others stop calling)
+- `onHasStopped` — "I'm truly dead now" (safe for others to proceed)
 
-**Example flow:**
+**Example flows:**
+
+Engine shutdown:
 ```
-Window.onClosing fires
+engine.destroy() called
     │
-    ▼
-main.cpp handler calls engine.destroy()
+    ├─► onIsAboutToStop ──► "Stop sending me render calls!"
     │
-    ├─► Engine fires onIsAboutToStop ──► Logger: "Engine shutting down..."
+    ├─► vkDeviceWaitIdle() ──► waits for GPU to finish
     │
-    ├─► Engine does vkDeviceWaitIdle, destroys Vulkan resources
+    └─► onHasStopped ──► "GPU idle, Vulkan destroyed, I'm truly dead"
+```
+
+Logger shutdown:
+```
+logger.stop() called
     │
-    └─► Engine fires onHasStopped ──► Window: "Engine is dead, I can die now"
+    ├─► onIsAboutToStop ──► "Stop sending me log messages!"
+    │
+    ├─► flush queue + join writer thread ──► waits for disk writes
+    │
+    └─► onHasStopped ──► "File closed, I'm truly dead"
 ```
 
 **Thread Safety:**
-- `m_dying` must be `std::atomic<bool>` to handle concurrent access
+- `m_dying` must be `std::atomic<bool>` — checked by internal threads
 - Use `m_dying.exchange(true)` for atomic test-and-set in destroy()
-- Callback pointers should be protected if modified from multiple threads (mutex or atomic)
+- Logger's writer thread checks `m_dying` to know when to exit its loop
+- Callbacks wired once at startup, never modified during runtime
 
 **Guarantees:**
 - **Re-entry blocked** — atomic flag prevents destroy() from running twice
@@ -166,11 +187,12 @@ CMakeLists.txt
 class Logger {
 public:
     bool start(const char* filename);
-    void write(const char* message);
+    void write(const char* message);  // queues message, returns immediately
     void stop();
 
 private:
     std::atomic<bool> m_dying = false;
+    std::thread m_writer_thread;      // internal thread for async file I/O
 };
 ```
 
