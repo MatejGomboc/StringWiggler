@@ -53,25 +53,43 @@ No std::function, no lambdas, no inheritance. Simple, debuggable, explicit.
 
 ### Shutdown Pattern
 
-Each component disconnects its outgoing callbacks as the first step in destruction:
+Each component uses a `m_dying` flag and follows a strict four-step destruction sequence:
 
 ```cpp
 void Engine::destroy() {
-    // 1. Silence outgoing calls first
-    m_on_log = nullptr;
-    m_on_log_user_data = nullptr;
+    // 1. Prevent re-entry
+    if (m_dying) return;
+    m_dying = true;
     
-    // 2. Now safe to clean up (no callbacks will fire)
+    // 2. Notify while callbacks still connected
+    if (m_on_stopping) {
+        m_on_stopping(m_on_stopping_user_data);
+    }
+    
+    // 3. Disconnect all outgoing callbacks
+    m_on_log = nullptr;
+    m_on_stopping = nullptr;
+    
+    // 4. Clean up resources
     vkDestroyDevice(m_device, nullptr);
     // ...
 }
 ```
 
+Other methods also check the flag:
+
+```cpp
+void Engine::render(...) {
+    if (m_dying) return;  // Silently ignore calls to dying component
+    // ...
+}
+```
+
 This guarantees:
-- No circular callback chains during destruction
-- No calls to already-destroyed components
-- No need for `isRunning()` checks or coordination flags
-- **Destruction order does not matter** — each component silences itself before touching anything, so they can be destroyed in any order
+- **Re-entry blocked** — flag prevents destroy() from running twice
+- **Circular cascades broken** — any callback chain that circles back hits the flag
+- **Late calls ignored** — methods silently return if component is dying
+- **Destruction order does not matter** — each component protects itself independently
 
 ### AppContext
 
@@ -120,6 +138,9 @@ public:
     bool start(const char* filename);
     void write(const char* message);
     void stop();
+
+private:
+    bool m_dying = false;
 };
 ```
 
@@ -131,10 +152,13 @@ public:
     void setOnLog(void(*callback)(const char*, void*), void* user_data);
     void setOnDraw(void(*callback)(void*), void* user_data);
     void setOnResize(void(*callback)(uint32_t, uint32_t, void*), void* user_data);
-    void setOnClosing(void(*callback)(void*), void* user_data);  // called before window destruction
+    void setOnClosing(void(*callback)(void*), void* user_data);
     
     NativeWindowHandle getNativeHandle() const;
     void run();
+
+private:
+    bool m_dying = false;
 };
 ```
 
@@ -144,10 +168,12 @@ public:
 class Engine {
 public:
     void setOnLog(void(*callback)(const char*, void*), void* user_data);
+    void setOnStopping(void(*callback)(void*), void* user_data);
     bool init(const NativeWindowHandle& window_handle);
     void destroy();
     
 private:
+    bool m_dying = false;
     VkInstance m_vk_instance = VK_NULL_HANDLE;
     VkDebugUtilsMessengerEXT m_vk_debug_messenger = VK_NULL_HANDLE; // debug only
     VkPhysicalDevice m_physical_device = VK_NULL_HANDLE;
