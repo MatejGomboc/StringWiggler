@@ -5,12 +5,10 @@
 #include <vector>
 
 // Forward declarations for Windows types (only if windows.h not already included)
-#ifndef _WINDOWS_
 struct HINSTANCE__;
 typedef HINSTANCE__* HINSTANCE;
 struct HWND__;
 typedef HWND__* HWND;
-#endif
 
 namespace Renderer
 {
