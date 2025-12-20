@@ -16,7 +16,10 @@ runs:
           uses: actions/cache@v4
           with:
             path: ~/VulkanSDK/${{ inputs.version }}
-            key: vulkan-sdk-linux-${{ inputs.version }}
+            key: vulkan-sdk-linux-${{ inputs.version }}-${{ github.ref }}
+            restore-keys: |
+              vulkan-sdk-linux-${{ inputs.version }}-refs/heads/main
+              vulkan-sdk-linux-${{ inputs.version }}-
 
         - name: Download and extract Vulkan SDK
           if: steps.cache-vulkan.outputs.cache-hit != 'true'
