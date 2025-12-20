@@ -97,6 +97,7 @@ SpacesInSquareBrackets: false
 Cpp11BracedListStyle: true
 
 # Penalties - prefer filling lines before wrapping
+PenaltyBreakAssignment: 1000
 PenaltyBreakBeforeFirstCallParameter: 1000
 PenaltyBreakOpenParenthesis: 1000
 
