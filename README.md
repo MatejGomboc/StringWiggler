@@ -6,7 +6,7 @@ Built with Vulkan for rendering, supporting Windows, Linux (X11/Wayland), and ma
 
 ## 📜 Licence
 
-Copyright © 2025 Matej Gomboc
+Copyright © 2025 Matej Gomboc <https://github.com/MatejGomboc/StringWiggler>.
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
