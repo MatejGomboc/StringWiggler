@@ -36,7 +36,7 @@ BraceWrapping:
   SplitEmptyNamespace: true
 
 # Line length
-ColumnLimit: 150
+ColumnLimit: 170
 
 # Pointer/reference alignment
 PointerAlignment: Left

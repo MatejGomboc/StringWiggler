@@ -3,7 +3,7 @@
     "editor.tabSize": 4,
     "editor.trimAutoWhitespace": true,
     "editor.defaultFormatter": "xaver.clang-format",
-    "editor.rulers": [150],
+    "editor.rulers": [170],
     "files.trimTrailingWhitespace": true,
     "files.insertFinalNewline": true,
     "files.encoding": "utf8",
@@ -17,6 +17,5 @@
     "[c]": {
         "editor.defaultFormatter": "xaver.clang-format"
     },
-    "cmake.configureOnOpen": false,
-    "clang-format.fallbackStyle": "Visual Studio"
+    "cmake.configureOnOpen": false
 }
