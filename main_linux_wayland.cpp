@@ -5,18 +5,8 @@
 #include "logger.h"
 #include "renderer.h"
 
-// XDG shell protocol - we need to include the generated headers
-// These are typically generated from xdg-shell.xml protocol file
-// For simplicity, we declare the necessary structures and functions here
-extern "C" {
-struct xdg_wm_base;
-struct xdg_surface;
-struct xdg_toplevel;
-
-extern const struct wl_interface xdg_wm_base_interface;
-extern const struct wl_interface xdg_surface_interface;
-extern const struct wl_interface xdg_toplevel_interface;
-}
+// Generated from xdg-shell.xml by wayland-scanner
+#include "xdg-shell-client-protocol.h"
 
 struct AppData {
     Engine::Logger logger;
