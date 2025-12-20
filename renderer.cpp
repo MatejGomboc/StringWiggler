@@ -2,8 +2,10 @@
 
 #if defined(_WIN32)
 #include <windows.h>
-#elif defined(__linux__)
+#elif defined(__linux__) && defined(VK_USE_PLATFORM_XLIB_KHR)
 #include <X11/Xlib.h>
+#elif defined(__linux__) && defined(VK_USE_PLATFORM_WAYLAND_KHR)
+#include <wayland-client.h>
 #elif defined(__APPLE__)
 // Metal types are forward-declared, no header needed here
 #endif
@@ -29,7 +31,7 @@ bool Renderer::createSurface(const NativeWindowHandle& window_handle, std::strin
 
     vk_error = vkCreateWin32SurfaceKHR(m_vk_instance, &create_info, nullptr, &m_vk_surface);
 
-#elif defined(__linux__)
+#elif defined(__linux__) && defined(VK_USE_PLATFORM_XLIB_KHR)
     VkXlibSurfaceCreateInfoKHR create_info{};
     create_info.sType = VK_STRUCTURE_TYPE_XLIB_SURFACE_CREATE_INFO_KHR;
     create_info.pNext = nullptr;
@@ -38,6 +40,16 @@ bool Renderer::createSurface(const NativeWindowHandle& window_handle, std::strin
     create_info.window = static_cast<Window>(window_handle.window);
 
     vk_error = vkCreateXlibSurfaceKHR(m_vk_instance, &create_info, nullptr, &m_vk_surface);
+
+#elif defined(__linux__) && defined(VK_USE_PLATFORM_WAYLAND_KHR)
+    VkWaylandSurfaceCreateInfoKHR create_info{};
+    create_info.sType = VK_STRUCTURE_TYPE_WAYLAND_SURFACE_CREATE_INFO_KHR;
+    create_info.pNext = nullptr;
+    create_info.flags = 0;
+    create_info.display = static_cast<wl_display*>(window_handle.display);
+    create_info.surface = static_cast<wl_surface*>(window_handle.surface);
+
+    vk_error = vkCreateWaylandSurfaceKHR(m_vk_instance, &create_info, nullptr, &m_vk_surface);
 
 #elif defined(__APPLE__)
     VkMetalSurfaceCreateInfoEXT create_info{};
@@ -142,8 +154,10 @@ bool Renderer::init(std::string& out_error_message, const NativeWindowHandle& wi
     std::vector<const char*> instance_extensions{VK_KHR_SURFACE_EXTENSION_NAME,
 #if defined(_WIN32)
         VK_KHR_WIN32_SURFACE_EXTENSION_NAME
-#elif defined(__linux__)
+#elif defined(__linux__) && defined(VK_USE_PLATFORM_XLIB_KHR)
         VK_KHR_XLIB_SURFACE_EXTENSION_NAME
+#elif defined(__linux__) && defined(VK_USE_PLATFORM_WAYLAND_KHR)
+        VK_KHR_WAYLAND_SURFACE_EXTENSION_NAME
 #elif defined(__APPLE__)
         VK_EXT_METAL_SURFACE_EXTENSION_NAME, VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME
 #endif
