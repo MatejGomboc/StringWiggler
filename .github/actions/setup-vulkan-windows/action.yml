@@ -22,7 +22,7 @@ runs:
           shell: pwsh
           run: |
             Invoke-WebRequest -Uri "https://sdk.lunarg.com/sdk/download/${{ inputs.version }}/windows/vulkansdk-windows-X64-${{ inputs.version }}.exe" -OutFile VulkanSDK-Installer.exe
-            Start-Process -FilePath .\VulkanSDK-Installer.exe -ArgumentList "--accept-licenses --default-answer --confirm-command install" -Wait
+            Start-Process -FilePath .\VulkanSDK-Installer.exe -ArgumentList "--accept-licenses --default-answer --confirm-command install com.lunarg.vulkan.volk" -Wait
             Remove-Item VulkanSDK-Installer.exe
 
         - name: Setup environment
