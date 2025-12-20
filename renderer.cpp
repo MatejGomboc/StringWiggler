@@ -1,6 +1,6 @@
 #include "renderer.h"
 
-using namespace Renderer;
+using namespace Engine;
 
 Renderer::~Renderer()
 {

@@ -6,8 +6,8 @@
 #include "renderer.h"
 
 struct MainWindowUserData {
-    Renderer::Logger logger;
-    Renderer::Renderer renderer;
+    Engine::Logger logger;
+    Engine::Renderer renderer;
 };
 
 #ifdef DEBUG

@@ -6,7 +6,7 @@
 #include <queue>
 #include <mutex>
 
-namespace Renderer
+namespace Engine
 {
     class Logger {
     public:

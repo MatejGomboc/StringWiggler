@@ -10,7 +10,7 @@ typedef HINSTANCE__* HINSTANCE;
 struct HWND__;
 typedef HWND__* HWND;
 
-namespace Renderer
+namespace Engine
 {
     class Renderer {
     public:

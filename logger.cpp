@@ -1,6 +1,6 @@
 #include "logger.h"
 
-using namespace Renderer;
+using namespace Engine;
 
 Logger::~Logger()
 {
