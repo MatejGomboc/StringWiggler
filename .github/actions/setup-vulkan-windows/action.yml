@@ -11,19 +11,21 @@ runs:
 
     steps:
         # On main: restore and save cache. On PRs: restore only (read-only).
+        # Cache key includes the component set (volk-vma) so changing the installed
+        # components invalidates an older cache instead of restoring a stale SDK.
         - name: Restore Vulkan SDK cache
           if: github.ref != 'refs/heads/main'
           uses: actions/cache/restore@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4
           with:
             path: C:\VulkanSDK\${{ inputs.version }}
-            key: vulkan-sdk-windows-${{ inputs.version }}
+            key: vulkan-sdk-windows-${{ inputs.version }}-volk-vma
 
         - name: Restore and save Vulkan SDK cache
           if: github.ref == 'refs/heads/main'
           uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4
           with:
             path: C:\VulkanSDK\${{ inputs.version }}
-            key: vulkan-sdk-windows-${{ inputs.version }}
+            key: vulkan-sdk-windows-${{ inputs.version }}-volk-vma
 
         - name: Check if SDK already exists
           id: check-sdk
@@ -40,7 +42,7 @@ runs:
           shell: pwsh
           run: |
             Invoke-WebRequest -Uri "https://sdk.lunarg.com/sdk/download/${{ inputs.version }}/windows/vulkansdk-windows-X64-${{ inputs.version }}.exe" -OutFile VulkanSDK-Installer.exe
-            Start-Process -FilePath .\VulkanSDK-Installer.exe -ArgumentList "--accept-licenses --default-answer --confirm-command install com.lunarg.vulkan.volk" -Wait
+            Start-Process -FilePath .\VulkanSDK-Installer.exe -ArgumentList "--accept-licenses --default-answer --confirm-command install com.lunarg.vulkan.volk com.lunarg.vulkan.vma" -Wait
             Remove-Item VulkanSDK-Installer.exe
 
         - name: Setup environment

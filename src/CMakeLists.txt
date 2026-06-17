@@ -1,9 +1,11 @@
 add_executable(${PROJECT_NAME}
     main.cpp
     volk.cpp
+    vma.cpp
     instance.cpp
     surface.cpp
     device.cpp
+    allocator.cpp
     renderer.cpp
 )
 
@@ -16,8 +18,14 @@ target_include_directories(${PROJECT_NAME} PRIVATE
 
 # Vulkan-specific definitions — scoped to this target only so the libraries stay
 # Vulkan-agnostic (the window library deals only in void* native handles).
+# - VK_NO_PROTOTYPES: Volk provides the entry points dynamically.
+# - VULKAN_HPP_DISPATCH_LOADER_DYNAMIC: vulkan-hpp / vk::raii use the dynamic dispatcher.
+# - VMA_STATIC/DYNAMIC_VULKAN_FUNCTIONS=0: VMA takes its function pointers from Volk.
 target_compile_definitions(${PROJECT_NAME} PRIVATE
     VK_NO_PROTOTYPES
+    VULKAN_HPP_DISPATCH_LOADER_DYNAMIC=1
+    VMA_STATIC_VULKAN_FUNCTIONS=0
+    VMA_DYNAMIC_VULKAN_FUNCTIONS=0
     $<$<PLATFORM_ID:Windows>:VK_USE_PLATFORM_WIN32_KHR NOMINMAX WIN32_LEAN_AND_MEAN>
     $<$<PLATFORM_ID:Linux>:VK_USE_PLATFORM_XCB_KHR>
 )

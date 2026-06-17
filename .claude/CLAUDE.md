@@ -17,9 +17,13 @@ rendering are all still to come. See `TODO.md` for what is planned and
 
 1. **NEVER push to `main`** — work on a feature branch and open a PR.
 2. **NEVER link Vulkan statically** — load it dynamically via volk with `VK_NO_PROTOTYPES`.
-3. **NEVER use exceptions in production code** — functions return `bool` and fill a
-   `std::string& out_error_message`. (Test code may throw — `TestingLib` assertions do.)
-4. **NEVER use vulkan-hpp / `vk::raii`** — plain C Vulkan via volk and `VK_NULL_HANDLE` handles.
+3. **NEVER throw our own exceptions, and never let one cross a public interface** — our
+   functions return `bool` and fill a `std::string& out_error_message`. (Test code may throw —
+   `TestingLib` assertions do.)
+4. **NEVER let a `vk::raii` / vulkan-hpp exception escape a component** — the external Vulkan
+   library DOES throw on errors; wrap its calls in `try/catch` inside each `init()` and
+   translate to `bool` + `out_error_message`. Exceptions are caught at the boundary, never
+   propagated.
 5. **NEVER over-engineer** — this is a tiny toy. No abstraction until a second concrete use exists.
 6. **NEVER use American spelling** in prose, comments or strings — British English everywhere
    (colour, initialise, behaviour, centre, optimise, recognise, licence).
@@ -36,6 +40,9 @@ rendering are all still to come. See `TODO.md` for what is planned and
 5. **ALWAYS free Vulkan handles by explicit `destroy()` in reverse construction order**, guarded
    by an `m_dying`-style flag where relevant. RAII owns the handles.
 6. **ALWAYS keep the `libs/` libraries Vulkan-agnostic** — only `src/` touches Vulkan.
+7. **ALWAYS use vulkan-hpp / `vk::raii` for Vulkan handles and VMA for GPU memory** — RAII
+   ownership; Volk loads the entry points and the vulkan-hpp dynamic dispatcher is initialised
+   from it (see `instance.cpp`).
 
 ## Project Structure
 
@@ -109,8 +116,9 @@ Warnings are errors on every compiler.
 |----------|--------|-----|
 | Code layout | Modular `libs/` + `src/` app, wired by CMake | Self-contained, Vulkan-agnostic bricks |
 | Vulkan loading | volk, dynamic, `VK_NO_PROTOTYPES` | No static link; pulls 1.3 entry points at runtime |
-| Vulkan bindings | Plain C + `VK_NULL_HANDLE` | No vulkan-hpp / `vk::raii` dependency for a toy |
-| Error handling | `bool` + `std::string& out_error_message` | No exceptions in production code |
+| Vulkan bindings | vulkan-hpp + `vk::raii` (RAII) | Automatic, ordered teardown of handles |
+| GPU memory | VMA (Vulkan Memory Allocator) | Standard allocation; fed Volk function pointers |
+| Error handling | `bool` + `out_error_message`; catch `vk::raii` throws at the boundary | Our code never throws; external-lib exceptions are contained |
 | Logging | `LoggingLib::Logger` → console | Async background thread; console subsystem app (not a log file) |
 | Windowing | Abstract `Window` + `create()` factory | Hides Win32/XCB behind `void*` native handles |
 | Platforms | Win32 + XCB (X11) only | Matched reach; Wayland via XWayland (macOS/Wayland dropped) |

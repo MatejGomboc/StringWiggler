@@ -20,9 +20,10 @@ At the present early stage the application opens a window, initialises Vulkan (i
 device selection) and then idles. Nothing is drawn yet — mouse tracking, the string itself, the
 physics and the rendering are all still to come.
 
-External dependencies are minimal: the Vulkan SDK and volk (the dynamic Vulkan loader). Vulkan is
-used through plain C with `VK_NO_PROTOTYPES` and `VK_NULL_HANDLE`-style handles; there is no
-vulkan-hpp, no `vk::raii`, and no memory allocator library. Vulkan 1.3 or newer is required.
+External dependencies are minimal: the Vulkan SDK, volk (the dynamic Vulkan loader), vulkan-hpp with
+`vk::raii` (RAII C++ bindings, header-only, from the SDK), and VMA (the Vulkan Memory Allocator, also
+from the SDK). Vulkan is loaded dynamically (`VK_NO_PROTOTYPES`; the vulkan-hpp dynamic dispatcher is
+fed from volk). Vulkan 1.3 or newer is required.
 
 ```text
 ┌──────────────────────────────────────────────────────────────┐
@@ -89,9 +90,10 @@ CMake target name (`signals`, `logging`, `math`, `window`, `testing`).
 | Decision | Choice | Why |
 |----------|--------|-----|
 | Vulkan loading | volk (dynamic) | No static link; `VK_NO_PROTOTYPES` defined globally |
-| Vulkan bindings | Plain C + `VK_NULL_HANDLE` handles | Small toy; no vulkan-hpp / `vk::raii` to learn |
+| Vulkan bindings | vulkan-hpp + `vk::raii` (RAII) | Automatic, ordered handle teardown |
+| GPU memory | VMA (Vulkan Memory Allocator) | Standard allocation; fed volk function pointers |
 | Vulkan version | 1.3+ required | Modern baseline; dynamic rendering available later |
-| Error handling | Return `bool` + `std::string& out_error_message` | No exceptions in production code |
+| Error handling | `bool` + `out_error_message`; `vk::raii` throws caught at the boundary | Our code never throws; external-lib exceptions are contained |
 | Cross-component callbacks | C function pointers + `void* user_data` | Simple, debuggable, no `std::function` |
 | Resource ownership | RAII; explicit `destroy()` in reverse order for Vulkan handles | Predictable teardown |
 | Inter-thread messaging | `SignalsLib::Signal<T>` | One thread-safe queue type, reused by the logger |
@@ -168,15 +170,18 @@ the `Renderer`, then runs the event loop (`waitEvents()` → drain `pollEvent()`
 
 ## Error Handling
 
-Production code does not use exceptions. Operations that can fail return `bool` and write a
-human-readable reason into a `std::string& out_error_message` out-parameter, for example:
+Our own code never throws. Operations that can fail return `bool` and write a human-readable reason
+into a `std::string& out_error_message` out-parameter, for example:
 
 ```cpp
 bool Renderer::init(LoggingLib::Logger& logger, const NativeWindowHandle& window_handle, std::string& out_error_message);
 ```
 
-The caller logs the message and exits. Test code is the one exception to the no-exceptions rule:
-`TestingLib` assertions throw, so test targets are built with exceptions enabled.
+The caller logs the message and exits. The external Vulkan library (`vk::raii` / vulkan-hpp) does throw
+`vk::SystemError` on Vulkan errors; each component's `init()` wraps those calls in `try/catch` and
+translates them to `out_error_message`, so no exception escapes our interfaces. Test code is the other
+place exceptions are allowed: `TestingLib` assertions throw, so test targets are built with exceptions
+enabled.
 
 Resource ownership is RAII. Vulkan handles are released by an explicit `destroy()` on each owner,
 called in reverse construction order (Device → surface → Instance), and each `destroy()` is safe to

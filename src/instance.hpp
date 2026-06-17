@@ -14,19 +14,23 @@
 
 #pragma once
 
-#include <log/logger.hpp>
 #ifdef _WIN32
 #include <Volk/volk.h>
 #else
 #include <volk/volk.h>
 #endif
+#include <vulkan/vulkan_raii.hpp>
+#include <log/logger.hpp>
 #include <string>
 
 namespace Engine
 {
 
-    //! Owns the VkInstance and (in debug builds) the validation debug messenger.
-    //! First component constructed during renderer initialisation; last destroyed.
+    //! Owns the Vulkan instance and (in debug builds) the validation debug messenger.
+    //! Cleanup is handled by vk::raii destructors (and explicit destroy() for ordered teardown).
+    //!
+    //! Exception policy: vk::raii throws on Vulkan errors; init() catches those at this
+    //! boundary and translates them to out_error_message, so no exception escapes our API.
     class Instance {
     public:
         Instance() = default;
@@ -37,28 +41,31 @@ namespace Engine
         Instance(Instance&&) = delete;
         Instance& operator=(Instance&&) = delete;
 
-        //! Initialises Volk, creates the Vulkan instance and (in debug builds) a validation
-        //! messenger routed to the given logger. Returns false and fills out_error_message
-        //! on failure. The logger must outlive this Instance (it backs the debug callback).
+        //! Initialises Volk + the vulkan-hpp dispatcher, then creates the instance and (in
+        //! debug builds) a validation messenger routed to the logger. Returns false and fills
+        //! out_error_message on failure. The logger must outlive this Instance.
         [[nodiscard]] bool init(LoggingLib::Logger& logger, std::string& out_error_message);
 
         //! Destroys the messenger and instance. Safe to call repeatedly.
         void destroy();
 
-        //! Returns the underlying VkInstance handle.
-        [[nodiscard]] VkInstance get() const
+        //! Raw VkInstance handle (for VMA and surface creation).
+        [[nodiscard]] VkInstance handle() const
         {
-            return m_vk_instance;
+            return *m_instance;
+        }
+
+        //! RAII instance reference (for surface / device creation).
+        [[nodiscard]] const vk::raii::Instance& get() const
+        {
+            return m_instance;
         }
 
     private:
+        vk::raii::Context m_context; //!< Vulkan loader bootstrap.
+        vk::raii::Instance m_instance{nullptr}; //!< Vulkan instance handle.
 #ifdef DEBUG
-        static constexpr const char* VK_LAYER_KHRONOS_VALIDATION_NAME = "VK_LAYER_KHRONOS_validation";
-#endif
-
-        VkInstance m_vk_instance{VK_NULL_HANDLE}; //!< Vulkan instance handle.
-#ifdef DEBUG
-        VkDebugUtilsMessengerEXT m_vk_debug_messenger{VK_NULL_HANDLE}; //!< Validation messenger (debug builds only).
+        vk::raii::DebugUtilsMessengerEXT m_debug_messenger{nullptr}; //!< Validation messenger (debug builds only).
 #endif
     };
 
