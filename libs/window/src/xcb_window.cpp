@@ -296,6 +296,10 @@ namespace WindowLib
                 ev.resize.width = cfg->width;
                 ev.resize.height = cfg->height;
                 pushEvent(ev);
+            } else {
+                // Same size — a reposition (or restack). Request a redraw.
+                WindowEvent ev{WindowEvent::Type::Move};
+                pushEvent(ev);
             }
             break;
         }
