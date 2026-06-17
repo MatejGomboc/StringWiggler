@@ -18,7 +18,11 @@
 #include "instance.hpp"
 #include "native_window_handle.hpp"
 #include <log/logger.hpp>
+#ifdef _WIN32
+#include <Volk/volk.h>
+#else
 #include <volk/volk.h>
+#endif
 #include <string>
 
 namespace Engine

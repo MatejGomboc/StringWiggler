@@ -15,7 +15,11 @@
 #pragma once
 
 #include <log/logger.hpp>
+#ifdef _WIN32
+#include <Volk/volk.h>
+#else
 #include <volk/volk.h>
+#endif
 #include <string>
 
 namespace Engine

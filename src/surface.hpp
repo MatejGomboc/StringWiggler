@@ -15,7 +15,11 @@
 #pragma once
 
 #include "native_window_handle.hpp"
+#ifdef _WIN32
+#include <Volk/volk.h>
+#else
 #include <volk/volk.h>
+#endif
 #include <string>
 #include <vector>
 
