@@ -44,7 +44,8 @@ All documentation, comments, and user-facing strings MUST use British English sp
 
 ## Exceptions
 
-- **Code identifiers** may use American spelling where it matches library/API conventions (for example Vulkan API names like `VkColorSpaceKHR`, or Win32 names). Do not "correct" these.
+- **Code identifiers** may use American spelling where it matches library/API conventions (for example
+  Vulkan API names like `VkColorSpaceKHR`, or Win32 names). Do not "correct" these.
 - **`GNU General Public License`** — proper noun, keep the American "License" spelling. British "licence" applies only to ordinary prose such as "the licence file".
 - **`LICENCE`** — this is the British filename of the licence file; it is off limits as a legal document, do not modify its contents.
 - **`CODE_OF_CONDUCT.md`** — off limits, do not modify.

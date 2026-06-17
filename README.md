@@ -1,6 +1,7 @@
 # 〰️ StringWiggler
 
-A cross-platform simulator of a wiggling string. Move your mouse cursor around the screen and watch a string dangle from it, whipping around as you go. A simple, satisfying, utterly pointless app for when you have nothing better to do.
+A cross-platform simulator of a wiggling string. Move your mouse cursor around the screen and watch a string dangle from it,
+whipping around as you go. A simple, satisfying, utterly pointless app for when you have nothing better to do.
 
 Built with Vulkan for rendering.
 
@@ -68,6 +69,7 @@ Found a security issue? Please see [SECURITY.md](SECURITY.md).
 
 Copyright (C) 2025 Matej Gomboc <https://github.com/MatejGomboc/StringWiggler>.
 
-This program is free software: you can redistribute it and/or modify it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.
+This program is free software: you can redistribute it and/or modify it under the terms of the GNU General Public License as
+published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.
 
 GNU General Public License v3.0 — see the [LICENCE](LICENCE) file (British spelling) for the full text.

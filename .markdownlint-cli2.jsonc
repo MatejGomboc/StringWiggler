@@ -1,0 +1,5 @@
+{
+    // CODE_OF_CONDUCT.md follows the upstream Contributor Covenant wording verbatim.
+    // GitHub issue templates have their own front-matter / format requirements.
+    "ignores": ["CODE_OF_CONDUCT.md", ".github/ISSUE_TEMPLATE/**", "build/**"]
+}

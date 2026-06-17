@@ -13,11 +13,13 @@ Perform a thorough C++ code quality and bug-hunting audit on specified files, or
 - Handles destroyed in reverse construction order (verify each `destroy()` frees the handles it owns, and that teardown unwinds in the reverse order of construction)
 - `m_dying`-style guards respected so a worker or callback cannot touch a half-torn-down object
 
-This project uses raw volk handles with manual `destroy()` and `VK_NULL_HANDLE`. Do NOT suggest converting to `vk::raii` or vulkan-hpp; instead verify the existing manual ownership is correct.
+This project uses raw volk handles with manual `destroy()` and `VK_NULL_HANDLE`. Do NOT suggest
+converting to `vk::raii` or vulkan-hpp; instead verify the existing manual ownership is correct.
 
 ### Vulkan-Specific
 
-- Every `VkResult` from `vkCreate*` / `vkAllocate*` / `vkEnumerate*` / etc. MUST be checked. On failure the function must fill `out_error_message` and `return false` (no exceptions in production code).
+- Every `VkResult` from `vkCreate*` / `vkAllocate*` / `vkEnumerate*` / etc. MUST be checked. On failure
+  the function must fill `out_error_message` and `return false` (no exceptions in production code).
 - Incorrect struct `sType` fields
 - Uninitialised or non-zeroed Vulkan create-info structs
 - Incorrect queue family indices (graphics vs present)

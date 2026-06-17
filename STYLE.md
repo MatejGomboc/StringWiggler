@@ -22,7 +22,8 @@ These rules are enforced by `.editorconfig`. Install the EditorConfig plugin for
 
 ## Single Source of Truth
 
-Avoid duplicating information across files. Each piece of information should have one canonical location. Reference the canonical source instead of copying its content, using `filename` § Section Name format.
+Avoid duplicating information across files. Each piece of information should have one canonical location. Reference the canonical
+source instead of copying its content, using `filename` § Section Name format.
 
 | Information | Canonical Source |
 |-------------|-----------------|
