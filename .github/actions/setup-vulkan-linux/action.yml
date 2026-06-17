@@ -11,17 +11,20 @@ runs:
     using: composite
 
     steps:
+        # The XCB development package (libxcb1-dev) is installed by the workflow,
+        # not here, because it comes from apt rather than the Vulkan SDK.
+
         # On main: restore and save cache. On PRs: restore only (read-only).
         - name: Restore Vulkan SDK cache
           if: github.ref != 'refs/heads/main'
-          uses: actions/cache/restore@v4
+          uses: actions/cache/restore@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4
           with:
             path: ~/VulkanSDK/${{ inputs.version }}
             key: vulkan-sdk-linux-${{ inputs.version }}
 
         - name: Restore and save Vulkan SDK cache
           if: github.ref == 'refs/heads/main'
-          uses: actions/cache@v4
+          uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4
           with:
             path: ~/VulkanSDK/${{ inputs.version }}
             key: vulkan-sdk-linux-${{ inputs.version }}

@@ -13,14 +13,14 @@ runs:
         # On main: restore and save cache. On PRs: restore only (read-only).
         - name: Restore Vulkan SDK cache
           if: github.ref != 'refs/heads/main'
-          uses: actions/cache/restore@v4
+          uses: actions/cache/restore@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4
           with:
             path: C:\VulkanSDK\${{ inputs.version }}
             key: vulkan-sdk-windows-${{ inputs.version }}
 
         - name: Restore and save Vulkan SDK cache
           if: github.ref == 'refs/heads/main'
-          uses: actions/cache@v4
+          uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4
           with:
             path: C:\VulkanSDK\${{ inputs.version }}
             key: vulkan-sdk-windows-${{ inputs.version }}
