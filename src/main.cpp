@@ -15,6 +15,7 @@
 #include "renderer.hpp"
 #include <log/logger.hpp>
 #include <window/window.hpp>
+#include <cstdint>
 #include <cstdlib>
 #include <memory>
 #include <string>
@@ -42,6 +43,10 @@ int main()
         return EXIT_FAILURE;
     }
 
+    // Track the cursor in window client pixels (start at the window centre).
+    int32_t cursor_x = static_cast<int32_t>(window->width() / 2);
+    int32_t cursor_y = static_cast<int32_t>(window->height() / 2);
+
     // Render loop — pump events non-blocking, then draw a frame. drawFrame() handles
     // swapchain recreation internally (resize / minimise) from the current window size.
     while (!window->shouldClose()) {
@@ -51,10 +56,13 @@ int main()
         while (window->pollEvent(event)) {
             if (event.type == WindowLib::WindowEvent::Type::Close) {
                 window->requestClose();
+            } else if (event.type == WindowLib::WindowEvent::Type::MouseMove) {
+                cursor_x = event.mouse_move.x;
+                cursor_y = event.mouse_move.y;
             }
         }
 
-        renderer.drawFrame(window->width(), window->height());
+        renderer.drawFrame(window->width(), window->height(), cursor_x, cursor_y);
     }
 
     renderer.destroy();
