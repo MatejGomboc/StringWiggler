@@ -14,8 +14,10 @@
 
 #include "renderer.hpp"
 #include "surface.hpp"
+#include <math/vector.hpp>
 #include <array>
 #include <cstdint>
+#include <cstring>
 
 namespace Engine
 {
@@ -24,6 +26,18 @@ namespace Engine
     //! distinct from the window's black fill — confirming the present path works. The final
     //! string-toy background will be black.
     static constexpr std::array<float, 4> CLEAR_COLOUR{0.05f, 0.05f, 0.15f, 1.0f};
+
+    //! Static placeholder string: a wavy poly-line in normalised device coordinates. Phase 3
+    //! will drive these points from the cursor; Phase 4 will make them wiggle.
+    static constexpr std::array<MathLib::Vec2, 7> LINE_POINTS{{
+        {-0.85f, -0.50f},
+        {-0.55f, 0.15f},
+        {-0.25f, 0.45f},
+        {0.00f, 0.50f},
+        {0.30f, 0.25f},
+        {0.60f, -0.25f},
+        {0.85f, -0.60f},
+    }};
 
     Renderer::~Renderer()
     {
@@ -66,6 +80,18 @@ namespace Engine
                 return false;
             }
             logger.logInfo("Swapchain created: " + std::to_string(m_swapchain.extent().width) + "x" + std::to_string(m_swapchain.extent().height) + ".");
+
+            if (!m_pipeline.init(m_device, m_swapchain.format(), out_error_message)) {
+                destroy();
+                return false;
+            }
+
+            // Upload the (static) string points into a host-visible, persistently-mapped buffer.
+            VkDeviceSize vertex_size = sizeof(LINE_POINTS);
+            m_vertex_buffer = m_allocator.createBuffer(vertex_size, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
+                VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT | VMA_ALLOCATION_CREATE_MAPPED_BIT, VMA_MEMORY_USAGE_AUTO);
+            std::memcpy(m_vertex_buffer.allocationInfo().pMappedData, LINE_POINTS.data(), static_cast<size_t>(vertex_size));
+            m_vertex_count = static_cast<uint32_t>(LINE_POINTS.size());
 
             if (!createFrameResources(out_error_message)) {
                 destroy();
@@ -210,6 +236,25 @@ namespace Engine
             rendering_info.setColorAttachments(colour_attachment);
 
             cmd.beginRendering(rendering_info);
+
+            vk::Viewport viewport{};
+            viewport.x = 0.0f;
+            viewport.y = 0.0f;
+            viewport.width = static_cast<float>(m_swapchain.extent().width);
+            viewport.height = static_cast<float>(m_swapchain.extent().height);
+            viewport.minDepth = 0.0f;
+            viewport.maxDepth = 1.0f;
+            cmd.setViewport(0, viewport);
+
+            vk::Rect2D scissor{vk::Offset2D{0, 0}, m_swapchain.extent()};
+            cmd.setScissor(0, scissor);
+
+            cmd.bindPipeline(vk::PipelineBindPoint::eGraphics, *m_pipeline.get());
+            vk::Buffer vertex_buffer{m_vertex_buffer.buffer()};
+            vk::DeviceSize vertex_offset{0};
+            cmd.bindVertexBuffers(0, vertex_buffer, vertex_offset);
+            cmd.draw(m_vertex_count, 1, 0, 0);
+
             cmd.endRendering();
 
             // Barrier: COLOR_ATTACHMENT_OPTIMAL -> PRESENT_SRC.
@@ -297,7 +342,9 @@ namespace Engine
         m_image_available.clear();
         m_command_buffers.clear();
         m_command_pool = nullptr;
+        m_pipeline.destroy();
         m_swapchain.destroy();
+        m_vertex_buffer = AllocatedBuffer{};
         m_allocator.destroy();
         m_device.destroy();
         m_surface = nullptr;

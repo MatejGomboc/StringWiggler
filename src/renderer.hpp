@@ -18,6 +18,7 @@
 #include "device.hpp"
 #include "instance.hpp"
 #include "native_window_handle.hpp"
+#include "pipeline.hpp"
 #include "swapchain.hpp"
 #include <log/logger.hpp>
 #include <vulkan/vulkan_raii.hpp>
@@ -70,7 +71,10 @@ namespace Engine
         vk::raii::SurfaceKHR m_surface{nullptr}; //!< Window surface.
         Device m_device; //!< Physical + logical device and queues.
         Allocator m_allocator; //!< VMA allocator.
+        AllocatedBuffer m_vertex_buffer; //!< Vertex buffer of the string's points (destroyed before the allocator).
+        uint32_t m_vertex_count{0}; //!< Number of points in the vertex buffer.
         Swapchain m_swapchain; //!< Swapchain + image views.
+        Pipeline m_pipeline; //!< Graphics pipeline for the line.
         vk::raii::CommandPool m_command_pool{nullptr}; //!< Graphics command pool.
         std::vector<vk::raii::CommandBuffer> m_command_buffers; //!< One per frame-in-flight.
         std::vector<vk::raii::Semaphore> m_image_available; //!< Signalled when an image is acquired (per frame-in-flight).

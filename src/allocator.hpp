@@ -53,6 +53,9 @@ namespace Engine
     //! RAII wrapper for a VMA buffer and its allocation (move-only).
     class AllocatedBuffer {
     public:
+        //! Constructs an empty (null) buffer — usable as a default-initialised member.
+        AllocatedBuffer() = default;
+
         //! Takes ownership of a VMA buffer + allocation pair.
         AllocatedBuffer(VmaAllocator allocator, VkBuffer buffer, VmaAllocation allocation) :
             m_allocator(allocator),
@@ -126,6 +129,9 @@ namespace Engine
     //! RAII wrapper for a VMA image and its allocation (move-only).
     class AllocatedImage {
     public:
+        //! Constructs an empty (null) image — usable as a default-initialised member.
+        AllocatedImage() = default;
+
         //! Takes ownership of a VMA image + allocation pair.
         AllocatedImage(VmaAllocator allocator, VkImage image, VmaAllocation allocation) :
             m_allocator(allocator),
