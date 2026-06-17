@@ -13,72 +13,13 @@
 */
 
 #include "pipeline.hpp"
+#include "shader_loader.hpp"
 #include <array>
 #include <cstdint>
-#include <fstream>
 #include <vector>
-
-#ifdef _WIN32
-#include <windows.h>
-#else
-#include <linux/limits.h>
-#include <unistd.h>
-#endif
 
 namespace Engine
 {
-
-    //! Returns the directory containing the running executable (with a trailing separator).
-    [[nodiscard]] static std::string executableDirectory()
-    {
-#ifdef _WIN32
-        wchar_t wide_path[MAX_PATH]{};
-        DWORD path_len{GetModuleFileNameW(nullptr, wide_path, MAX_PATH)};
-        if ((path_len == 0) || (path_len >= MAX_PATH)) {
-            return {};
-        }
-        int len{WideCharToMultiByte(CP_UTF8, 0, wide_path, -1, nullptr, 0, nullptr, nullptr)};
-        if (len <= 0) {
-            return {};
-        }
-        std::string narrow(static_cast<std::string::size_type>(len - 1), '\0');
-        WideCharToMultiByte(CP_UTF8, 0, wide_path, -1, narrow.data(), len, nullptr, nullptr);
-        std::string::size_type pos{narrow.find_last_of("\\/")};
-        return (pos != std::string::npos) ? narrow.substr(0, pos + 1) : narrow;
-#else
-        char path[PATH_MAX]{};
-        ssize_t count{readlink("/proc/self/exe", path, PATH_MAX)};
-        std::string full(path, (count > 0) ? static_cast<std::string::size_type>(count) : 0);
-        std::string::size_type pos{full.find_last_of('/')};
-        return (pos != std::string::npos) ? full.substr(0, pos + 1) : full;
-#endif
-    }
-
-    //! Reads a SPIR-V binary into a uint32 buffer. Returns false and fills out_error_message
-    //! on failure.
-    [[nodiscard]] static bool loadSpirv(const std::string& path, std::vector<uint32_t>& out_code, std::string& out_error_message)
-    {
-        std::ifstream file(path, std::ios::ate | std::ios::binary);
-        if (!file.is_open()) {
-            out_error_message = "Failed to open SPIR-V file: " + path + ".";
-            return false;
-        }
-
-        std::streamsize file_size{file.tellg()};
-        if ((file_size <= 0) || ((file_size % static_cast<std::streamsize>(sizeof(uint32_t))) != 0)) {
-            out_error_message = "Invalid SPIR-V file size: " + path + ".";
-            return false;
-        }
-
-        out_code.resize(static_cast<std::vector<uint32_t>::size_type>(file_size) / sizeof(uint32_t));
-        file.seekg(0);
-        file.read(reinterpret_cast<char*>(out_code.data()), file_size);
-        if (!file.good()) {
-            out_error_message = "Failed to read SPIR-V file: " + path + ".";
-            return false;
-        }
-        return true;
-    }
 
     bool Pipeline::init(const Device& device, vk::Format colour_format, std::string& out_error_message)
     {

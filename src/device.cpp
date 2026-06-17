@@ -34,7 +34,9 @@ namespace Engine
 
         std::vector<vk::QueueFamilyProperties> families = physical_device.getQueueFamilyProperties();
         for (uint32_t i = 0; i < families.size(); ++i) {
-            if (families[i].queueFlags & vk::QueueFlagBits::eGraphics) {
+            // Require graphics + compute on the same family — graphics queues support compute
+            // in practice, and the string physics is dispatched on the graphics queue.
+            if ((families[i].queueFlags & vk::QueueFlagBits::eGraphics) && (families[i].queueFlags & vk::QueueFlagBits::eCompute)) {
                 indices.graphics = i;
                 indices.has_graphics = true;
             }
