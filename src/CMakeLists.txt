@@ -44,7 +44,7 @@ find_program(SLANGC_EXECUTABLE slangc HINTS "$ENV{VULKAN_SDK}/bin" "$ENV{VULKAN_
 find_program(SPIRV_VAL_EXECUTABLE spirv-val HINTS "$ENV{VULKAN_SDK}/bin" "$ENV{VULKAN_SDK}/Bin" REQUIRED)
 
 set(SHADER_OUTPUT_DIR ${CMAKE_CURRENT_BINARY_DIR})
-set(LINE_SHADER ${CMAKE_CURRENT_SOURCE_DIR}/shaders/line.slang)
+set(LINE_SHADER ${CMAKE_CURRENT_SOURCE_DIR}/line.slang)
 
 # Compile line.slang (both entry points) into one SPIR-V module, then validate it.
 add_custom_command(
