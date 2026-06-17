@@ -3,9 +3,8 @@
 Technical architecture of StringWiggler.
 
 > StringWiggler is a deliberately-pointless Vulkan toy: a string dangles from the mouse cursor
-> and whips around as you move it. This document describes the real structure of the codebase.
-> Parts that are not built yet are marked **(target design)**. See [TODO.md](../TODO.md) for the
-> development journal.
+> and whips around as you move it. This document describes the real structure of the codebase as
+> built. See [TODO.md](../TODO.md) for the development journal.
 
 ---
 
@@ -16,31 +15,33 @@ into a handful of small, self-contained libraries under `libs/` and a thin appli
 (the `Engine` namespace). The libraries are general-purpose building blocks; the application wires
 them together and owns the Vulkan back end.
 
-At the present early stage the application opens a window, initialises Vulkan (instance, surface,
-device selection) and then idles. Nothing is drawn yet — mouse tracking, the string itself, the
-physics and the rendering are all still to come.
+The application opens a window and renders a cyan string that hangs from the mouse cursor and
+wiggles. The head node is pinned to the cursor; the whole string is simulated on the GPU by a Slang
+compute shader (Verlet integration + distance constraints) and drawn as a 128-node line strip with
+dynamic rendering. The frame loop runs on a dedicated render thread that draws only while the string
+is in motion and redraws live during window resize/move. It runs on any Vulkan 1.3 GPU, integrated
+included — there are no ray-tracing or discrete-only requirements.
 
 External dependencies are minimal: the Vulkan SDK, volk (the dynamic Vulkan loader), vulkan-hpp with
 `vk::raii` (RAII C++ bindings, header-only, from the SDK), and VMA (the Vulkan Memory Allocator, also
-from the SDK). Vulkan is loaded dynamically (`VK_NO_PROTOTYPES`; the vulkan-hpp dynamic dispatcher is
-fed from volk). Vulkan 1.3 or newer is required.
+from the SDK). Shaders are written in Slang and compiled to SPIR-V by `slangc` (validated with
+`spirv-val`) at build time. Vulkan is loaded dynamically (`VK_NO_PROTOTYPES`; the vulkan-hpp dynamic
+dispatcher is fed from volk). Vulkan 1.3 or newer is required (dynamic rendering + synchronization2).
 
 ```text
 ┌──────────────────────────────────────────────────────────────┐
 │                    Application  (src/, Engine)                 │
-│  main.cpp — composition root, event loop                      │
-│  Renderer ── Instance · surface · Device                      │
+│  main.cpp — window events (main thread) + render thread        │
+│  Renderer ── Instance · surface · Device · Allocator           │
+│           ── Swapchain · Pipeline (graphics) · ComputePipeline │
+│  Shaders: physics.slang (compute) + line.slang (vertex/frag)   │
 ├──────────────────────────────────────────────────────────────┤
 │                       Libraries  (libs/)                       │
 │   window  (Win32 / XCB)        math  (Vec2/Vec3/Vec4)         │
-│      │                                                         │
-│   logging  (async console logger)                             │
-│      │                                                         │
-│   signals  (Signal<T> FIFO queue)                             │
-│                                                                │
+│   logging  (async console logger)   signals  (Signal<T> FIFO) │
 │   testing  (unit-test framework — test targets only)         │
 ├──────────────────────────────────────────────────────────────┤
-│                     volk  (dynamic loader)                     │
+│          volk  (dynamic loader) + VMA + vulkan-hpp            │
 │  Resolves Vulkan function pointers at runtime                 │
 └──────────────────────────────────────────────────────────────┘
 ```
@@ -54,9 +55,9 @@ the ones below it.
 
 ```text
         app (src/, Engine)
-        │      │      │
-        ▼      ▼      ▼
-     window  logging  math
+        │      │      │      │
+        ▼      ▼      ▼      ▼
+     window  logging  math  signals
         │      │
         ▼      ▼
      logging  signals
@@ -69,14 +70,16 @@ the ones below it.
   queue `Signal<T>` with `emit()` / `consume()`. Header: `<signal/signal.hpp>`. No dependencies.
 - **`libs/logging`** — STATIC, namespace `LoggingLib`. The `Logger` class (see below). Depends on
   `signals` (it uses `Signal<LogMessage>` as its internal queue). Header: `<log/logger.hpp>`.
-- **`libs/math`** — INTERFACE, namespace `MathLib`. `Vec2` / `Vec3` / `Vec4`. The 2D string physics
-  will use `Vec2`. Header: `<math/vector.hpp>`. No dependencies.
+- **`libs/math`** — INTERFACE, namespace `MathLib`. `Vec2` / `Vec3` / `Vec4`. The string nodes are
+  `Vec2` (shared with the compute shader's vertex/storage layout). Header: `<math/vector.hpp>`. No
+  dependencies.
 - **`libs/window`** — STATIC, namespace `WindowLib`. The window abstraction and platform backends.
   Depends on `logging`. Header: `<window/window.hpp>`.
 - **`libs/testing`** — STATIC, namespace `TestingLib`. An in-house unit-test framework (~250 lines):
   `TEST_CASE` auto-registration, `TEST_CHECK` / `TEST_CHECK_EQUAL` / `TEST_CHECK_THROWS`, and
   `runAll()`. Header: `<testing/testing.hpp>`. Linked only by test targets, never by the application.
-- **`src/` (the application)**, namespace `Engine`. Depends on `window`, `logging` and `math`. Owns
+- **`src/` (the application)**, namespace `Engine`. Depends on `window`, `logging`, `math` and
+  `signals` (the render thread consumes a `Signal<RenderEvent>` queue fed by the main thread). Owns
   the Vulkan back end through `Renderer`.
 
 Library namespaces are PascalCase with a `Lib` suffix; the application uses `Engine`. Each library
@@ -100,6 +103,11 @@ CMake target name (`signals`, `logging`, `math`, `window`, `testing`).
 | Logging | Async, severity-based, to console | Console-subsystem app; Debug/Info → stdout, the rest → stderr |
 | Window backends | Win32 and XCB only | Matches the platforms we actually support |
 | Native handles | Exposed as `void*` | Consumers never include platform headers |
+| Rendering | Dynamic rendering + synchronization2 (Vulkan 1.3) | No render pass / framebuffers; `beginRendering` + `pipelineBarrier2` |
+| Shaders | Slang → SPIR-V via `slangc` (validated by `spirv-val`) | One source per stage set; entry points selected per pipeline stage |
+| Physics | GPU compute (`physics.slang`) | Per-node Verlet + distance constraints in one workgroup (shared-memory red-black solve) |
+| Frame loop | Dedicated render thread; render-on-demand | Draws only while the string moves; sleeps on a condvar when settled |
+| Present mode | FIFO (v-sync) | Steady physics timestep; low power; integrated-GPU friendly |
 | Spelling | British English in prose/comments/strings | Repo standard (colour, initialise, behaviour) |
 
 ---
@@ -142,15 +150,21 @@ is invoked *in addition* to the queue, so a caller can react during modal operat
 Win32 resize drag) when the main loop is otherwise blocked. Native handles are exposed generically
 as `void* nativeHandle()` and `void* nativeDisplay()`.
 
-### Vulkan back end (`src/`, `Engine`) *(built: instance/surface/device)*
+### Vulkan back end (`src/`, `Engine`) *(built)*
 
 `Engine::Renderer` is the composition root for Vulkan. It owns, in dependency order:
 
 ```text
 Renderer
-  ├── Instance     (VkInstance + debug messenger)
-  ├── surface      (VkSurfaceKHR — owned directly by Renderer)
-  └── Device       (physical + logical device, graphics & present queues)
+  ├── Instance         (VkInstance + debug messenger)
+  ├── surface          (VkSurfaceKHR — owned directly by Renderer)
+  ├── Device           (physical + logical device; graphics+compute & present queues)
+  ├── Allocator        (VMA allocator + RAII AllocatedBuffer / AllocatedImage)
+  ├── positions / prev (GPU storage buffers — the string's Verlet state)
+  ├── Swapchain        (images + views; FIFO present)
+  ├── Pipeline         (graphics: line-strip, one Vec2 vertex attribute)
+  ├── ComputePipeline  (physics: descriptor set + PhysicsPush push constants)
+  └── command pool + per-frame command buffer + sync (one frame in flight)
 ```
 
 - **`Engine::Instance`** initialises volk, creates the `VkInstance` and, in debug builds, a
@@ -158,13 +172,45 @@ Renderer
 - **`surface.hpp`** provides two free functions: `requiredSurfaceExtensions()` (the WSI extensions
   for the current platform) and `createSurface()` (builds a `VkSurfaceKHR` from a
   `NativeWindowHandle`). Keeping both together concentrates all platform WSI knowledge in one file.
-- **`Engine::Device`** scores the available physical devices, preferring discrete GPUs, and requires
-  graphics + present queue families and the `VK_KHR_swapchain` extension before creating the logical
-  device and fetching the queues.
+- **`Engine::Device`** scores the available physical devices, preferring discrete but falling back
+  to integrated, and requires a combined **graphics + compute** queue family, a present queue and
+  the `VK_KHR_swapchain` extension. It enables the Vulkan 1.3 `dynamicRendering` and
+  `synchronization2` features on the logical device.
+- **`Engine::Allocator`** wraps VMA (fed volk's function pointers) and hands out RAII
+  `AllocatedBuffer` / `AllocatedImage` values.
+- **`Engine::Swapchain`** picks an sRGB format and **FIFO** present mode, creates the images and
+  views, and recreates itself on resize / out-of-date.
+- **`Engine::Pipeline`** is the graphics pipeline (line-strip topology, one `Vec2` vertex attribute,
+  dynamic viewport/scissor, dynamic rendering) built from `line.slang`.
+- **`Engine::ComputePipeline`** is the physics pipeline: a descriptor set binding the two storage
+  buffers (current + previous positions) and a `PhysicsPush` push-constant block, built from
+  `physics.slang`. `shader_loader` provides the shared `loadSpirv()` / `executableDirectory()`.
 
-`main.cpp` is the single entry point (`int main()`, console subsystem). It constructs the `Logger`,
-creates the `Window`, builds a `NativeWindowHandle` from the window's `void*` handles, initialises
-the `Renderer`, then runs the event loop (`waitEvents()` → drain `pollEvent()` → handle close).
+`main.cpp` (`int main()`, console subsystem) constructs the `Logger`, creates the `Window`,
+initialises the `Renderer`, then spawns the **render thread** and runs the window event loop on the
+main thread. See *Frame loop and physics* and *Threading* below.
+
+---
+
+## Frame loop and physics
+
+Each frame, on the render thread, the renderer records one command buffer that does both the
+simulation and the draw:
+
+1. **Dispatch** the physics compute shader (`physics.slang`). One workgroup of 128 threads — one
+   per node — runs Verlet integration with gravity, pins the head node to the cursor, then relaxes
+   the distance constraints between adjacent nodes with even/odd (red-black) Gauss-Seidel passes in
+   shared memory, synchronised by `GroupMemoryBarrierWithGroupSync`. Cursor position, delta time,
+   gravity, damping, segment length and the iteration count arrive as push constants.
+2. **Barrier** — a `pipelineBarrier2` makes the compute shader's writes to the positions buffer
+   visible to the vertex stage (the buffer is bound as both a storage buffer and the vertex buffer).
+3. **Draw** — transition the swapchain image to colour-attachment, `beginRendering`, draw the
+   positions buffer as a 128-vertex line strip, `endRendering`, transition to present.
+
+The string's state lives in two GPU storage buffers (current + previous positions). Because they
+are shared between the compute and graphics stages there is exactly **one frame in flight**, which
+removes any cross-frame data race and is plenty at v-sync. The cursor is mapped from window client
+pixels to NDC (Vulkan clip space is +Y down, matching screen pixels, so no flip is needed).
 
 ---
 
@@ -191,14 +237,25 @@ call more than once.
 
 ## Threading
 
-The application itself is single-threaded: the window pumps native events and the (future) frame
-loop both run on the main thread. The one background thread in the codebase belongs to the
-**logger**: its `std::jthread` worker drains the message queue and performs the console writes off
-the calling thread. Because of this, shutdown is not instantaneous — the log queue must drain and
-the worker must join before the process exits.
+The application runs three threads:
 
-`SignalsLib::Signal<T>` guards its queue with a mutex, so producers on any thread and the single
-logger consumer interleave safely.
+- **Main thread** — owns the window. It pumps native events (`waitEvents()`, blocking when idle)
+  and watches for the close request. It does not touch Vulkan after start-up.
+- **Render thread** — owns the entire frame loop and all Vulkan work after `init`. It renders while
+  the string is in motion (a short settle window after the last event) and otherwise sleeps on a
+  `std::condition_variable`. This is render-on-demand: an idle, settled window costs no CPU/GPU.
+- **Logger thread** — the `Logger`'s `std::jthread` worker draining the log queue (as above).
+
+The main thread forwards window events to the render thread through a
+`SignalsLib::Signal<RenderEvent>` queue plus the condition variable. Crucially, the window's
+**immediate `EventCallback`** runs on the main/UI thread *even during the Win32 modal resize/move
+loop* (when the main loop is blocked inside the OS), so the render thread is still woken and the
+window keeps redrawing **live** while being dragged. Events are emitted **under the render mutex**
+(the same one the render thread waits on), so a wake-up can never be lost. The renderer is created
+on the main thread, used only by the render thread between spawn and join, then destroyed on the
+main thread after the join — so its Vulkan objects are never touched by two threads at once.
+`SignalsLib::Signal<T>` guards its own queue with a mutex, so emit/consume are independently
+thread-safe.
 
 ---
 
@@ -206,33 +263,28 @@ logger consumer interleave safely.
 
 Teardown is ordered and idempotent:
 
-- The `Renderer` calls `destroy()` on its members in reverse construction order. Each Vulkan owner
-  guards against a second call so a manual `destroy()` followed by the destructor is harmless.
+- On close, the main loop emits a `Stop` event (under the render mutex) and notifies the render
+  thread, then `join()`s it. The window `EventCallback` is cleared next, so no late event can touch
+  freed state during window destruction.
+- The `Renderer` (destroyed on the main thread after the join) `waitIdle()`s the device and calls
+  `destroy()` on its members in reverse construction order; each Vulkan owner guards against a
+  second call, so a manual `destroy()` followed by the destructor is harmless.
 - The `Logger` is destroyed last in `main`. Its `std::jthread` requests stop via the `std::stop_token`,
   the worker drains any remaining messages, and the destructor joins the thread.
 
-There is no elaborate multi-phase shutdown protocol — RAII plus reverse-order `destroy()` is enough
-for a toy of this size.
+There is no elaborate multi-phase shutdown protocol — a Stop/join handshake plus RAII and
+reverse-order `destroy()` is enough for a toy of this size.
 
 ---
 
-## Future Phases *(target design)*
+## Future ideas
 
-The drawing pipeline is not built yet. The intended order is:
-
-1. **Swapchain** — add `VK_KHR_swapchain` creation and image views to the renderer.
-2. **Pipeline** — a minimal graphics pipeline and the per-frame command-buffer / synchronisation
-   plumbing (acquire → record → submit → present), with swapchain recreation driven by
-   `VK_ERROR_OUT_OF_DATE_KHR` / `VK_SUBOPTIMAL_KHR`.
-3. **Static line** — upload a fixed set of `MathLib::Vec2` points and draw a static line on a
-   plain background.
-4. **Mouse tracking** — feed `WindowEvent::MouseMove` through to the renderer and pin the first
-   point of the line to the cursor.
-5. **Verlet physics** — integrate the string nodes with Verlet integration, gravity and distance
-   constraints between nodes, so the string finally wiggles.
-
-Further out, the three libraries (window, logging, and the renderer logic) may be split into fully
-independent libraries; see [TODO.md](../TODO.md).
+The drawing pipeline and physics are built: swapchain, graphics + compute pipelines, mouse
+tracking, GPU Verlet physics, and the threaded render-on-demand loop with live resize/move redraw.
+What remains is optional polish — a thicker / anti-aliased string, a tunable feel (gravity /
+damping / mouse-velocity "flick"), colour or glow, multiple strings — and eventually splitting the
+renderer logic into its own library once a second consumer exists. See [TODO.md](../TODO.md) for the
+running list.
 
 ---
 

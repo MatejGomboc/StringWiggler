@@ -6,10 +6,13 @@ StringWiggler is a small, deliberately-pointless cross-platform Vulkan toy: a st
 from the mouse cursor and whips around as you move it. C++ with plain C Vulkan via volk.
 GPLv3. Repo: <https://github.com/MatejGomboc/StringWiggler> Version 0.1.0.
 
-**Status: EARLY STAGE.** The app opens a window, initialises Vulkan (instance, surface, device
-selection), then idles. Nothing is drawn yet — mouse tracking, the string, physics and
-rendering are all still to come. See `TODO.md` for what is planned and
-`docs/ARCHITECTURE.md` for how the pieces fit together. Do not duplicate that design state here.
+**Status: WORKING TOY.** The app renders a cyan string that hangs from the mouse cursor and
+wiggles: the head is pinned to the cursor and the whole string is simulated on the GPU (Verlet
+physics in a Slang compute shader) then drawn as a 128-node line strip via dynamic rendering.
+Rendering runs on a dedicated thread that only draws while the string is in motion (sleeping when
+settled) and redraws live during resize/move. Runs on any Vulkan 1.3 GPU, including integrated.
+See `TODO.md` for what is built and what's left, and `docs/ARCHITECTURE.md` for how the pieces fit
+together. Do not duplicate that design state here.
 
 ## Critical Rules
 
@@ -43,6 +46,11 @@ rendering are all still to come. See `TODO.md` for what is planned and
 7. **ALWAYS use vulkan-hpp / `vk::raii` for Vulkan handles and VMA for GPU memory** — RAII
    ownership; Volk loads the entry points and the vulkan-hpp dynamic dispatcher is initialised
    from it (see `instance.cpp`).
+8. **ALWAYS keep Vulkan on the render thread** — `main.cpp` pumps window events on the main
+   thread and forwards them to the render thread via `SignalsLib::Signal<RenderEvent>` + a
+   condition variable; the render thread owns all `drawFrame` / swapchain work. The renderer is
+   created on the main thread, used only by the render thread between spawn and join, then
+   destroyed after join. Emit render events under the render mutex so a wake-up cannot be lost.
 
 ## Project Structure
 
@@ -71,14 +79,28 @@ StringWiggler/
 │                          #   xcb_window. void* nativeHandle()/nativeDisplay() — no platform
 │                          #   headers leak. Depends on logging.
 ├── src/                   # The application — namespace Engine (console subsystem)
-│   ├── main.cpp           # Single entry point — int main()
+│   ├── main.cpp           # Entry point int main(); spawns the render thread, pumps window
+│   │                      #   events, forwards them via Signal<RenderEvent> + condvar
 │   ├── volk.cpp           # VOLK_IMPLEMENTATION translation unit
+│   ├── vma.cpp            # VMA_IMPLEMENTATION translation unit
 │   ├── instance.{hpp,cpp} # Engine::Instance — VkInstance + debug messenger; validation
 │   │                      #   routed to the logger in debug builds
 │   ├── surface.{hpp,cpp}  # createSurface + requiredSurfaceExtensions free functions
-│   ├── device.{hpp,cpp}   # Engine::Device — scored physical-device selection (prefers
-│   │                      #   discrete GPUs), graphics+present queues, swapchain ext, logical device
-│   ├── renderer.{hpp,cpp} # Engine::Renderer — composition root owning Instance + surface + Device
+│   ├── device.{hpp,cpp}   # Engine::Device — scored selection (prefers discrete, falls back to
+│   │                      #   integrated), graphics+compute+present queue, swapchain ext,
+│   │                      #   Vulkan 1.3 dynamicRendering + synchronization2
+│   ├── allocator.{hpp,cpp}# Engine::Allocator (VMA) + RAII AllocatedBuffer / AllocatedImage
+│   ├── swapchain.{hpp,cpp} # Engine::Swapchain — images/views, FIFO present, recreate()
+│   ├── pipeline.{hpp,cpp} # Engine::Pipeline — graphics pipeline (line-strip, Vec2 vertex,
+│   │                      #   dynamic rendering) built from line.slang
+│   ├── compute_pipeline.{hpp,cpp} # Engine::ComputePipeline — physics compute pipeline +
+│   │                      #   descriptor set (positions+prev) + PhysicsPush, from physics.slang
+│   ├── shader_loader.{hpp,cpp} # executableDirectory() + loadSpirv() (shared by both pipelines)
+│   ├── renderer.{hpp,cpp} # Engine::Renderer — composition root: Instance, surface, Device,
+│   │                      #   Allocator, Swapchain, Pipeline, ComputePipeline, GPU physics
+│   │                      #   buffers + per-frame command/sync. drawFrame = dispatch→barrier→draw
+│   ├── line.slang         # vertex + fragment (cyan line) → line.spv
+│   ├── physics.slang      # compute (Verlet + constraints + damping) → physics.spv
 │   ├── native_window_handle.hpp
 │   └── vulkan_helpers.hpp
 ├── CMakeLists.txt / CMakePresets.json
@@ -123,6 +145,11 @@ Warnings are errors on every compiler.
 | Windowing | Abstract `Window` + `create()` factory | Hides Win32/XCB behind `void*` native handles |
 | Platforms | Win32 + XCB (X11) only | Matched reach; Wayland via XWayland (macOS/Wayland dropped) |
 | Decoupling | C function pointers + `void* user_data` | No `std::function` for cross-component callbacks |
+| Rendering | Dynamic rendering + synchronization2 (Vulkan 1.3) | No render pass / framebuffers; `cmd.beginRendering` + `pipelineBarrier2` |
+| Physics | GPU compute, Slang `physics.slang` | Per-node Verlet + distance constraints in one workgroup (shared-memory red-black solve) |
+| Frame loop | Dedicated render thread, render-on-demand | Draws only while the string moves; sleeps on a condvar when settled; woken by the window `EventCallback` (so resize/move redraw live, even mid modal loop) |
+| Present mode | FIFO (v-sync) | Steady physics timestep; low power; integrated-GPU friendly |
+| GPU support | Any Vulkan 1.3 device incl. integrated | No RTX / discrete-only features — just a graphics+compute queue + storage buffers |
 
 ## Off Limits
 

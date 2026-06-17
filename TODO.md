@@ -33,12 +33,17 @@ has been split into modular `libs/` plus a `src/` application, wired by CMake:
   internal event queue drained by `pollEvent()` plus an optional immediate
   `EventCallback`. Native handles are exposed generically as `void*` so
   consumers never include platform headers. Depends on `logging`.
-- **`src/`** — the application (namespace `Engine`): the renderer has been
+- **`src/`** — the application (namespace `Engine`). The Vulkan back end is
   decomposed into `Instance` (VkInstance + debug messenger, validation routed to
   the logger in debug builds), `surface` (free functions), `Device` (scored
-  physical-device selection preferring discrete GPUs) and `Renderer` (the
-  composition root owning Instance + surface + Device). A single console
-  `main.cpp` wires it all together.
+  selection preferring discrete GPUs, falling back to integrated; requires a
+  graphics+compute+present queue and Vulkan 1.3 dynamic rendering +
+  synchronization2), `Allocator` (VMA + RAII buffer/image wrappers), `Swapchain`
+  (FIFO present, dynamic-rendering images), `Pipeline` (graphics line-strip) and
+  `ComputePipeline` (the physics dispatch), all owned by the `Renderer`
+  composition root. The string is simulated on the GPU and drawn each frame as a
+  128-node line strip; `main.cpp` runs the window event loop on the main thread
+  and the frame loop on a dedicated render thread.
 - **Tooling** — unit tests via CTest (`enable_testing()`), CMake presets,
   warnings-as-errors on all compilers, ASan/UBSan + TSan sanitiser presets, and
   the supporting docs/CI have been adopted.
@@ -55,18 +60,26 @@ Two decisions worth recording:
 
 ## Roadmap
 
-The app currently opens a window and initialises Vulkan (instance, surface,
-device selection), then idles. Nothing is drawn yet. The remaining work:
+The original drawing + physics roadmap is now complete — the app renders a
+GPU-simulated wiggling string that follows the cursor:
 
 | Phase | Goal | Status |
 | --- | --- | --- |
-| Phase 2 | Swapchain + graphics pipeline + static line rendering — draw a curved line on a cleared background. | To do |
-| Phase 3 | Mouse tracking — pin the string head to the cursor. The `WindowEvent` `MouseMove` already carries `x`/`y` plus `dx`/`dy`. | To do |
-| Phase 4 | Verlet physics — gravity + distance constraints over the string nodes using `MathLib::Vec2`, so the string actually wiggles. | To do |
+| Phase 2 | Swapchain + graphics pipeline + static line on a cleared background (dynamic rendering, Slang shaders). | Done |
+| Phase 3 | Mouse tracking — pin the string head to the cursor (screen pixels → NDC). | Done |
+| Phase 4 | Physics — Verlet integration + gravity + distance constraints over the nodes, run in a Slang **compute** shader (per-node, one workgroup), with velocity damping so it settles. | Done |
+| Phase 5 | Live window events — dedicated render thread woken by the window `EventCallback`; render-on-demand (idle costs nothing); redraw live on resize/move; new `Move` event. | Done |
 
 ---
 
 ## Later
 
-- Profile and tidy the physics step once the string is moving.
-- Tighten the renderer's resize/recreation handling once a swapchain exists.
+Polish and possible extensions (none essential — this is a toy):
+
+- Thicker / anti-aliased string (expand the line into a triangle strip, or MSAA).
+- Tunable feel — expose gravity / damping / segment count, or add mouse-velocity
+  "flick" so fast moves whip the string harder.
+- Visual flourishes — a colour gradient along the string, glow, a non-black clear.
+- Multiple strings, or pin both ends.
+- Split the renderer logic into its own library once a second consumer exists
+  (the `libs/` split anticipated in the original design).
