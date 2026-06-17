@@ -6,6 +6,7 @@ add_executable(${PROJECT_NAME}
     surface.cpp
     device.cpp
     allocator.cpp
+    swapchain.cpp
     renderer.cpp
 )
 

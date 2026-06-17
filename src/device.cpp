@@ -67,6 +67,11 @@ namespace Engine
         }
 
         vk::PhysicalDeviceProperties properties = physical_device.getProperties();
+        // Require Vulkan 1.3 — dynamicRendering and synchronization2 are core (mandatory)
+        // features there, so any 1.3 device is guaranteed to support what we enable below.
+        if (properties.apiVersion < VK_API_VERSION_1_3) {
+            return -1;
+        }
         int score = 0;
         if (properties.deviceType == vk::PhysicalDeviceType::eDiscreteGpu) {
             score += 1000;
@@ -125,10 +130,17 @@ namespace Engine
 
             vk::PhysicalDeviceFeatures enabled_features{};
 
+            // Vulkan 1.3 core features the renderer relies on: dynamic rendering (no render
+            // pass / framebuffers) and synchronization2 (the pipelineBarrier2 / submit2 API).
+            vk::PhysicalDeviceVulkan13Features features13{};
+            features13.dynamicRendering = vk::True;
+            features13.synchronization2 = vk::True;
+
             vk::DeviceCreateInfo device_create_info{};
             device_create_info.setQueueCreateInfos(queue_create_infos);
             device_create_info.setPEnabledExtensionNames(REQUIRED_DEVICE_EXTENSIONS);
             device_create_info.setPEnabledFeatures(&enabled_features);
+            device_create_info.setPNext(&features13);
 
             m_device = vk::raii::Device(m_physical_device, device_create_info);
 

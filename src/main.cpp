@@ -37,15 +37,15 @@ int main()
 
     Engine::Renderer renderer;
     std::string error_message;
-    if (!renderer.init(logger, window_handle, error_message)) {
+    if (!renderer.init(logger, window_handle, window->width(), window->height(), error_message)) {
         logger.logError(error_message);
         return EXIT_FAILURE;
     }
 
-    // Event loop — block until events arrive, drain them, react to close requests.
-    // Frame rendering will hang off this loop in a later milestone.
+    // Render loop — pump events non-blocking, then draw a frame. drawFrame() handles
+    // swapchain recreation internally (resize / minimise) from the current window size.
     while (!window->shouldClose()) {
-        window->waitEvents();
+        window->pumpEvents();
 
         WindowLib::WindowEvent event;
         while (window->pollEvent(event)) {
@@ -54,7 +54,7 @@ int main()
             }
         }
 
-        // TODO: render a frame here once the swapchain/pipeline exist (Phase 2).
+        renderer.drawFrame(window->width(), window->height());
     }
 
     renderer.destroy();
