@@ -227,6 +227,14 @@ namespace WindowLib
             return 0;
         }
 
+        case WM_MOVE: {
+            // Window repositioned (fires live during the modal move loop too) — request a redraw
+            // so the surface is re-presented at the new location.
+            WindowEvent ev{WindowEvent::Type::Move};
+            pushEvent(ev);
+            return 0;
+        }
+
         case WM_KEYDOWN:
         case WM_SYSKEYDOWN: {
             WindowEvent ev{WindowEvent::Type::KeyDown};

@@ -32,6 +32,7 @@ namespace WindowLib
             MouseButtonDown, //!< Mouse button pressed.
             MouseButtonUp, //!< Mouse button released.
             Expose, //!< Window content needs redrawing (uncovered, mapped).
+            Move, //!< Window was moved (repositioned) — content should be re-presented.
             Focus, //!< Window gained focus.
             Blur //!< Window lost focus.
         };
