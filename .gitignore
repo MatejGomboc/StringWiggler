@@ -1,3 +1,7 @@
 /build
 /.qtcreator
 /.vs
+
+# Per-machine Claude Code state (shared config lives in committed .claude/ files).
+/.claude/settings.local.json
+/.claude/scheduled_tasks.lock
