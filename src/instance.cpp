@@ -64,7 +64,9 @@ namespace Engine
         destroy();
     }
 
-    bool Instance::init(LoggingLib::Logger& logger, std::string& out_error_message)
+    // logger is only referenced when DEBUG is defined (it backs the validation messenger),
+    // so mark it [[maybe_unused]] to keep Release (no DEBUG) warning-clean under -Werror.
+    bool Instance::init([[maybe_unused]] LoggingLib::Logger& logger, std::string& out_error_message)
     {
         if (m_vk_instance != VK_NULL_HANDLE) {
             out_error_message = "Vulkan instance already initialised.";
