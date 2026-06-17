@@ -8,6 +8,8 @@ add_executable(${PROJECT_NAME}
     allocator.cpp
     swapchain.cpp
     pipeline.cpp
+    compute_pipeline.cpp
+    shader_loader.cpp
     renderer.cpp
 )
 
@@ -45,6 +47,7 @@ find_program(SPIRV_VAL_EXECUTABLE spirv-val HINTS "$ENV{VULKAN_SDK}/bin" "$ENV{V
 
 set(SHADER_OUTPUT_DIR ${CMAKE_CURRENT_BINARY_DIR})
 set(LINE_SHADER ${CMAKE_CURRENT_SOURCE_DIR}/line.slang)
+set(PHYSICS_SHADER ${CMAKE_CURRENT_SOURCE_DIR}/physics.slang)
 
 # Compile line.slang (both entry points) into one SPIR-V module, then validate it.
 add_custom_command(
@@ -65,13 +68,33 @@ add_custom_command(
     VERBATIM
 )
 
+# Compile physics.slang (compute) into a SPIR-V module, then validate it.
+add_custom_command(
+    OUTPUT ${SHADER_OUTPUT_DIR}/physics.spv
+    COMMAND ${SLANGC_EXECUTABLE}
+        ${PHYSICS_SHADER}
+        -target spirv
+        -profile spirv_1_4
+        -emit-spirv-directly
+        -fvk-use-entrypoint-name
+        -warnings-as-errors all
+        -entry physicsMain
+        -o ${SHADER_OUTPUT_DIR}/physics.spv
+    COMMAND ${SPIRV_VAL_EXECUTABLE} --target-env vulkan1.3 ${SHADER_OUTPUT_DIR}/physics.spv
+    DEPENDS ${PHYSICS_SHADER}
+    COMMENT "Compiling physics.slang -> physics.spv (with validation)"
+    VERBATIM
+)
+
 # Compile shaders as part of ALL, and copy them next to the executable for runtime loading.
-add_custom_target(shaders ALL DEPENDS ${SHADER_OUTPUT_DIR}/line.spv)
+add_custom_target(shaders ALL DEPENDS ${SHADER_OUTPUT_DIR}/line.spv ${SHADER_OUTPUT_DIR}/physics.spv)
 add_dependencies(${PROJECT_NAME} shaders)
 
 add_custom_target(copy_shaders ALL
     COMMAND ${CMAKE_COMMAND} -E copy_if_different
         ${SHADER_OUTPUT_DIR}/line.spv $<TARGET_FILE_DIR:${PROJECT_NAME}>/line.spv
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        ${SHADER_OUTPUT_DIR}/physics.spv $<TARGET_FILE_DIR:${PROJECT_NAME}>/physics.spv
     COMMENT "Copying shaders next to the executable"
     VERBATIM
 )

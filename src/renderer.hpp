@@ -15,6 +15,7 @@
 #pragma once
 
 #include "allocator.hpp"
+#include "compute_pipeline.hpp"
 #include "device.hpp"
 #include "instance.hpp"
 #include "native_window_handle.hpp"
@@ -31,9 +32,9 @@
 namespace Engine
 {
 
-    //! Composition root for the Vulkan back end. Owns, in dependency order, the instance,
-    //! surface, device, allocator, per-frame vertex buffers, swapchain, pipeline and the
-    //! per-frame command/sync objects.
+    //! Composition root for the Vulkan back end. The string is simulated on the GPU by a
+    //! compute shader (Verlet + distance constraints) writing the positions buffer, which the
+    //! graphics pipeline then draws as a line strip.
     //!
     //! Exception policy: vk::raii throws on Vulkan errors; those are caught at the init() and
     //! drawFrame() boundaries (and in each sub-component) and never escape the public API.
@@ -47,18 +48,18 @@ namespace Engine
         Renderer(Renderer&&) = delete;
         Renderer& operator=(Renderer&&) = delete;
 
-        //! Number of nodes (points) in the string.
-        static constexpr uint32_t NODE_COUNT = 32;
+        //! Number of nodes (points) in the string. Must match NODE_COUNT in physics.slang.
+        static constexpr uint32_t NODE_COUNT = 128;
 
         //! Initialises the Vulkan back end for the given native window at the given size.
         //! Returns false and fills out_error_message on failure. The logger must outlive the
         //! renderer.
         [[nodiscard]] bool init(LoggingLib::Logger& logger, const NativeWindowHandle& window_handle, uint32_t width, uint32_t height, std::string& out_error_message);
 
-        //! Renders and presents one frame. The string's head is pinned to the cursor (given in
-        //! window client pixels); the remaining nodes hang straight down (Phase 4 adds physics).
+        //! Simulates one physics step on the GPU (head pinned to the cursor, given in window
+        //! client pixels) and renders the string. dt is the frame delta time in seconds.
         //! width/height drive swapchain recreation (resize/minimise). Never throws.
-        void drawFrame(uint32_t width, uint32_t height, int32_t cursor_x, int32_t cursor_y);
+        void drawFrame(uint32_t width, uint32_t height, int32_t cursor_x, int32_t cursor_y, float dt);
 
         //! Tears down the back end in reverse construction order (waits for the GPU first).
         void destroy();
@@ -67,23 +68,31 @@ namespace Engine
         //! Creates the command pool, per-frame command buffers and synchronisation objects.
         [[nodiscard]] bool createFrameResources(std::string& out_error_message);
 
+        //! Creates + fills the positions/previous-positions storage buffers and the compute
+        //! descriptor set.
+        [[nodiscard]] bool createPhysicsResources(std::string& out_error_message);
+
         //! Recreates the swapchain (and the per-image render-finished semaphores) at a new size.
         void recreateSwapchain(uint32_t width, uint32_t height);
 
-        //! Computes the string node positions (NDC) for a head at the given cursor pixel.
-        [[nodiscard]] std::array<MathLib::Vec2, NODE_COUNT> computeNodes(uint32_t width, uint32_t height, int32_t cursor_x, int32_t cursor_y) const;
-
-        static constexpr uint32_t MAX_FRAMES_IN_FLIGHT = 2; //!< Frames the CPU may run ahead of the GPU.
+        // One frame in flight: the physics state lives in a single GPU buffer shared by compute
+        // and the vertex stage, so a single in-flight frame avoids a cross-frame data race and
+        // is plenty at v-sync.
+        static constexpr uint32_t MAX_FRAMES_IN_FLIGHT = 1; //!< Frames the CPU may run ahead of the GPU.
 
         LoggingLib::Logger* m_logger{nullptr}; //!< Logger (non-owning), set in init().
         Instance m_instance; //!< Vulkan instance + debug messenger.
         vk::raii::SurfaceKHR m_surface{nullptr}; //!< Window surface.
         Device m_device; //!< Physical + logical device and queues.
         Allocator m_allocator; //!< VMA allocator.
-        std::vector<AllocatedBuffer> m_vertex_buffers; //!< One mapped vertex buffer per frame-in-flight (destroyed before the allocator).
+        AllocatedBuffer m_positions; //!< Current node positions (storage + vertex buffer; before allocator).
+        AllocatedBuffer m_prev_positions; //!< Previous node positions (Verlet history; before allocator).
         Swapchain m_swapchain; //!< Swapchain + image views.
-        Pipeline m_pipeline; //!< Graphics pipeline for the line.
-        vk::raii::CommandPool m_command_pool{nullptr}; //!< Graphics command pool.
+        Pipeline m_pipeline; //!< Graphics pipeline (draws the line strip).
+        ComputePipeline m_compute_pipeline; //!< Compute pipeline (physics).
+        vk::raii::DescriptorPool m_descriptor_pool{nullptr}; //!< Pool for the compute descriptor set.
+        vk::raii::DescriptorSet m_descriptor_set{nullptr}; //!< Binds positions + prev to the compute shader.
+        vk::raii::CommandPool m_command_pool{nullptr}; //!< Graphics/compute command pool.
         std::vector<vk::raii::CommandBuffer> m_command_buffers; //!< One per frame-in-flight.
         std::vector<vk::raii::Semaphore> m_image_available; //!< Signalled when an image is acquired (per frame-in-flight).
         std::vector<vk::raii::Semaphore> m_render_finished; //!< Signalled when rendering is done (per swapchain image).

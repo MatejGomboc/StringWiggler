@@ -34,14 +34,10 @@ namespace Engine
         return available.front();
     }
 
-    //! Selects the present mode, preferring MAILBOX (low latency); FIFO is always available.
-    [[nodiscard]] static vk::PresentModeKHR choosePresentMode(const std::vector<vk::PresentModeKHR>& available)
+    //! Selects the present mode. FIFO (v-sync): steady frame pacing for stable physics and easy
+    //! on integrated GPUs / laptop battery. Always available per the Vulkan spec.
+    [[nodiscard]] static vk::PresentModeKHR choosePresentMode([[maybe_unused]] const std::vector<vk::PresentModeKHR>& available)
     {
-        if (std::ranges::any_of(available, [](vk::PresentModeKHR mode) {
-                return mode == vk::PresentModeKHR::eMailbox;
-            })) {
-            return vk::PresentModeKHR::eMailbox;
-        }
         return vk::PresentModeKHR::eFifo;
     }
 

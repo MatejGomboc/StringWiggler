@@ -21,34 +21,45 @@
 namespace Engine
 {
 
-    //! Background clear colour. A dark blue (not black) so the rendered frame is visibly
-    //! distinct from the window's black fill. The final string-toy background will be black.
+    //! Background clear colour (a dark blue). The final toy background may become black.
     static constexpr std::array<float, 4> CLEAR_COLOUR{0.05f, 0.05f, 0.15f, 1.0f};
 
-    //! Total length of the (rigid, for now) string in normalised device coordinates.
+    //! Total rest length of the string in normalised device coordinates.
     static constexpr float STRING_LENGTH_NDC = 1.6f;
+    //! Rest distance between adjacent nodes.
+    static constexpr float SEGMENT_LENGTH = STRING_LENGTH_NDC / static_cast<float>(Renderer::NODE_COUNT - 1);
+    //! Downward acceleration (NDC / s^2; +Y is down in Vulkan clip space).
+    static constexpr float GRAVITY = 4.0f;
+    //! Constraint relaxation iterations per frame.
+    static constexpr uint32_t CONSTRAINT_ITERATIONS = 24;
+    //! Velocity damping per step so the string loses energy and settles to rest within the
+    //! render-on-demand settle window (lower = settles faster, still swings on a yank).
+    static constexpr float DAMPING = 0.98f;
+    //! Clamp on dt so a stall (breakpoint, resize) cannot blow up the integration.
+    static constexpr float MAX_DELTA = 0.05f;
+
+    //! Maps a cursor in window client pixels to NDC (Vulkan: +Y down, matching screen pixels).
+    [[nodiscard]] static MathLib::Vec2 cursorToNdc(uint32_t width, uint32_t height, int32_t cursor_x, int32_t cursor_y)
+    {
+        float x = (width > 0) ? ((static_cast<float>(cursor_x) / static_cast<float>(width)) * 2.0f - 1.0f) : 0.0f;
+        float y = (height > 0) ? ((static_cast<float>(cursor_y) / static_cast<float>(height)) * 2.0f - 1.0f) : 0.0f;
+        return MathLib::Vec2{x, y};
+    }
+
+    //! Initial node layout: a straight string hanging down from the screen centre.
+    [[nodiscard]] static std::array<MathLib::Vec2, Renderer::NODE_COUNT> initialPositions()
+    {
+        std::array<MathLib::Vec2, Renderer::NODE_COUNT> nodes{};
+        MathLib::Vec2 head{0.0f, -0.4f};
+        for (uint32_t i = 0; i < Renderer::NODE_COUNT; ++i) {
+            nodes[i] = head + MathLib::Vec2{0.0f, static_cast<float>(i) * SEGMENT_LENGTH};
+        }
+        return nodes;
+    }
 
     Renderer::~Renderer()
     {
         destroy();
-    }
-
-    std::array<MathLib::Vec2, Renderer::NODE_COUNT> Renderer::computeNodes(uint32_t width, uint32_t height, int32_t cursor_x, int32_t cursor_y) const
-    {
-        // Map the cursor (window client pixels) to NDC. Vulkan clip space is +Y down, which
-        // matches screen-space pixels, so no flip is needed: cursor at the top -> y near -1.
-        float ndc_x = (width > 0) ? ((static_cast<float>(cursor_x) / static_cast<float>(width)) * 2.0f - 1.0f) : 0.0f;
-        float ndc_y = (height > 0) ? ((static_cast<float>(cursor_y) / static_cast<float>(height)) * 2.0f - 1.0f) : 0.0f;
-        MathLib::Vec2 head{ndc_x, ndc_y};
-
-        // Rigid hang: each node sits a fixed step below the previous one. Phase 4 will replace
-        // this with Verlet integration so the lower nodes lag and swing.
-        constexpr float segment = STRING_LENGTH_NDC / static_cast<float>(NODE_COUNT - 1);
-        std::array<MathLib::Vec2, NODE_COUNT> nodes{};
-        for (uint32_t i = 0; i < NODE_COUNT; ++i) {
-            nodes[i] = head + MathLib::Vec2{0.0f, static_cast<float>(i) * segment};
-        }
-        return nodes;
     }
 
     bool Renderer::init(LoggingLib::Logger& logger, const NativeWindowHandle& window_handle, uint32_t width, uint32_t height, std::string& out_error_message)
@@ -93,18 +104,21 @@ namespace Engine
                 return false;
             }
 
-            // One host-visible, persistently-mapped vertex buffer per frame-in-flight, so the
-            // string can be rewritten each frame without racing the GPU's read of another frame.
-            VkDeviceSize vertex_size = NODE_COUNT * sizeof(MathLib::Vec2);
-            for (uint32_t i = 0; i < MAX_FRAMES_IN_FLIGHT; ++i) {
-                m_vertex_buffers.push_back(m_allocator.createBuffer(vertex_size, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
-                    VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT | VMA_ALLOCATION_CREATE_MAPPED_BIT, VMA_MEMORY_USAGE_AUTO));
+            if (!m_compute_pipeline.init(m_device, out_error_message)) {
+                destroy();
+                return false;
+            }
+
+            if (!createPhysicsResources(out_error_message)) {
+                destroy();
+                return false;
             }
 
             if (!createFrameResources(out_error_message)) {
                 destroy();
                 return false;
             }
+            logger.logInfo("String physics ready (" + std::to_string(NODE_COUNT) + " GPU-simulated nodes).");
         } catch (const vk::SystemError& e) {
             out_error_message = std::string("Vulkan error during renderer initialisation: ") + e.what();
             destroy();
@@ -116,6 +130,69 @@ namespace Engine
         }
 
         m_initialised = true;
+        return true;
+    }
+
+    bool Renderer::createPhysicsResources(std::string& out_error_message)
+    {
+        try {
+            VkDeviceSize buffer_size = NODE_COUNT * sizeof(MathLib::Vec2);
+
+            // positions: read/written by compute AND read by the vertex stage.
+            m_positions = m_allocator.createBuffer(buffer_size, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
+                VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT | VMA_ALLOCATION_CREATE_MAPPED_BIT, VMA_MEMORY_USAGE_AUTO);
+            // prev positions: Verlet history (compute only).
+            m_prev_positions = m_allocator.createBuffer(buffer_size, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
+                VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT | VMA_ALLOCATION_CREATE_MAPPED_BIT, VMA_MEMORY_USAGE_AUTO);
+
+            // Seed both buffers with the initial layout (prev == pos -> zero initial velocity).
+            std::array<MathLib::Vec2, NODE_COUNT> seed = initialPositions();
+            std::memcpy(m_positions.allocationInfo().pMappedData, seed.data(), static_cast<size_t>(buffer_size));
+            std::memcpy(m_prev_positions.allocationInfo().pMappedData, seed.data(), static_cast<size_t>(buffer_size));
+
+            // One descriptor set binding both buffers to the compute shader.
+            std::array<vk::DescriptorPoolSize, 1> pool_sizes{};
+            pool_sizes[0].type = vk::DescriptorType::eStorageBuffer;
+            pool_sizes[0].descriptorCount = 2;
+
+            vk::DescriptorPoolCreateInfo pool_info{};
+            pool_info.flags = vk::DescriptorPoolCreateFlagBits::eFreeDescriptorSet;
+            pool_info.maxSets = 1;
+            pool_info.setPoolSizes(pool_sizes);
+            m_descriptor_pool = vk::raii::DescriptorPool(m_device.get(), pool_info);
+
+            vk::DescriptorSetAllocateInfo alloc_info{};
+            alloc_info.descriptorPool = *m_descriptor_pool;
+            alloc_info.setSetLayouts(*m_compute_pipeline.descriptorSetLayout());
+            std::vector<vk::raii::DescriptorSet> sets = m_device.get().allocateDescriptorSets(alloc_info);
+            m_descriptor_set = std::move(sets.front());
+
+            vk::DescriptorBufferInfo pos_info{};
+            pos_info.buffer = vk::Buffer(m_positions.buffer());
+            pos_info.offset = 0;
+            pos_info.range = VK_WHOLE_SIZE;
+
+            vk::DescriptorBufferInfo prev_info{};
+            prev_info.buffer = vk::Buffer(m_prev_positions.buffer());
+            prev_info.offset = 0;
+            prev_info.range = VK_WHOLE_SIZE;
+
+            std::array<vk::WriteDescriptorSet, 2> writes{};
+            writes[0].dstSet = *m_descriptor_set;
+            writes[0].dstBinding = 0;
+            writes[0].dstArrayElement = 0;
+            writes[0].descriptorType = vk::DescriptorType::eStorageBuffer;
+            writes[0].setBufferInfo(pos_info);
+            writes[1].dstSet = *m_descriptor_set;
+            writes[1].dstBinding = 1;
+            writes[1].dstArrayElement = 0;
+            writes[1].descriptorType = vk::DescriptorType::eStorageBuffer;
+            writes[1].setBufferInfo(prev_info);
+            m_device.get().updateDescriptorSets(writes, {});
+        } catch (const vk::SystemError& e) {
+            out_error_message = std::string("Vulkan error creating physics resources: ") + e.what();
+            return false;
+        }
         return true;
     }
 
@@ -144,8 +221,6 @@ namespace Engine
                 m_in_flight.push_back(vk::raii::Fence(device, fence_info));
             }
 
-            // render-finished semaphores are per swapchain image (avoids reusing a semaphore
-            // still tied to an in-flight present).
             m_render_finished.clear();
             for (uint32_t i = 0; i < m_swapchain.imageCount(); ++i) {
                 m_render_finished.push_back(vk::raii::Semaphore(device, vk::SemaphoreCreateInfo{}));
@@ -160,20 +235,18 @@ namespace Engine
     void Renderer::recreateSwapchain(uint32_t width, uint32_t height)
     {
         m_swapchain.recreate(width, height);
-        // The per-image render-finished semaphores must match the (possibly new) image count.
         m_render_finished.clear();
         for (uint32_t i = 0; i < m_swapchain.imageCount(); ++i) {
             m_render_finished.push_back(vk::raii::Semaphore(m_device.get(), vk::SemaphoreCreateInfo{}));
         }
     }
 
-    void Renderer::drawFrame(uint32_t width, uint32_t height, int32_t cursor_x, int32_t cursor_y)
+    void Renderer::drawFrame(uint32_t width, uint32_t height, int32_t cursor_x, int32_t cursor_y, float dt)
     {
         if (!m_initialised) {
             return;
         }
 
-        // Minimised / zero-extent: nothing to render. Try to rebuild if the window came back.
         if (m_swapchain.isZeroExtent()) {
             if ((width > 0) && (height > 0)) {
                 try {
@@ -188,27 +261,47 @@ namespace Engine
         try {
             const vk::raii::Device& device = m_device.get();
 
-            // 1. Wait for this frame slot's previous work to finish (also makes its vertex
-            //    buffer safe to overwrite).
+            // 1. Wait for the previous frame to finish (also frees the shared physics buffers).
             (void)device.waitForFences({*m_in_flight[m_current_frame]}, vk::True, UINT64_MAX);
 
-            // 2. Acquire the next image (throws vk::OutOfDateKHRError if the swapchain is stale).
+            // 2. Acquire (throws vk::OutOfDateKHRError if the swapchain is stale).
             vk::ResultValue<uint32_t> acquire = m_swapchain.get().acquireNextImage(UINT64_MAX, *m_image_available[m_current_frame]);
             uint32_t image_index = acquire.value;
             bool suboptimal = (acquire.result == vk::Result::eSuboptimalKHR);
 
-            // 3. Reset the fence only now (after a successful acquire) to avoid a deadlock.
             device.resetFences({*m_in_flight[m_current_frame]});
 
-            // 4. Update this frame's vertex buffer with the current string nodes.
-            std::array<MathLib::Vec2, NODE_COUNT> nodes = computeNodes(width, height, cursor_x, cursor_y);
-            std::memcpy(m_vertex_buffers[m_current_frame].allocationInfo().pMappedData, nodes.data(), sizeof(nodes));
-
-            // 5. Record the frame.
             const vk::raii::CommandBuffer& cmd = m_command_buffers[m_current_frame];
             cmd.reset();
             vk::CommandBufferBeginInfo begin_info{};
             cmd.begin(begin_info);
+
+            // --- Physics: dispatch the compute shader (one workgroup simulates the whole string).
+            MathLib::Vec2 cursor = cursorToNdc(width, height, cursor_x, cursor_y);
+            PhysicsPush push{};
+            push.cursor_x = cursor.x;
+            push.cursor_y = cursor.y;
+            push.dt = (dt > MAX_DELTA) ? MAX_DELTA : dt;
+            push.gravity = GRAVITY;
+            push.segment_length = SEGMENT_LENGTH;
+            push.damping = DAMPING;
+            push.node_count = NODE_COUNT;
+            push.iterations = CONSTRAINT_ITERATIONS;
+
+            cmd.bindPipeline(vk::PipelineBindPoint::eCompute, *m_compute_pipeline.get());
+            cmd.bindDescriptorSets(vk::PipelineBindPoint::eCompute, *m_compute_pipeline.layout(), 0, *m_descriptor_set, nullptr);
+            cmd.pushConstants<PhysicsPush>(*m_compute_pipeline.layout(), vk::ShaderStageFlagBits::eCompute, 0, push);
+            cmd.dispatch(1, 1, 1);
+
+            // Barrier: compute write to positions -> vertex-attribute read.
+            vk::MemoryBarrier2 compute_to_vertex{};
+            compute_to_vertex.srcStageMask = vk::PipelineStageFlagBits2::eComputeShader;
+            compute_to_vertex.srcAccessMask = vk::AccessFlagBits2::eShaderStorageWrite;
+            compute_to_vertex.dstStageMask = vk::PipelineStageFlagBits2::eVertexAttributeInput;
+            compute_to_vertex.dstAccessMask = vk::AccessFlagBits2::eVertexAttributeRead;
+            vk::DependencyInfo dep_compute{};
+            dep_compute.setMemoryBarriers(compute_to_vertex);
+            cmd.pipelineBarrier2(dep_compute);
 
             vk::ImageSubresourceRange colour_range{};
             colour_range.aspectMask = vk::ImageAspectFlagBits::eColor;
@@ -229,7 +322,6 @@ namespace Engine
             to_attachment.dstQueueFamilyIndex = vk::QueueFamilyIgnored;
             to_attachment.image = m_swapchain.images()[image_index];
             to_attachment.subresourceRange = colour_range;
-
             vk::DependencyInfo dep_to_attachment{};
             dep_to_attachment.setImageMemoryBarriers(to_attachment);
             cmd.pipelineBarrier2(dep_to_attachment);
@@ -261,7 +353,7 @@ namespace Engine
             cmd.setScissor(0, scissor);
 
             cmd.bindPipeline(vk::PipelineBindPoint::eGraphics, *m_pipeline.get());
-            vk::Buffer vertex_buffer{m_vertex_buffers[m_current_frame].buffer()};
+            vk::Buffer vertex_buffer{m_positions.buffer()};
             vk::DeviceSize vertex_offset{0};
             cmd.bindVertexBuffers(0, vertex_buffer, vertex_offset);
             cmd.draw(NODE_COUNT, 1, 0, 0);
@@ -280,14 +372,13 @@ namespace Engine
             to_present.dstQueueFamilyIndex = vk::QueueFamilyIgnored;
             to_present.image = m_swapchain.images()[image_index];
             to_present.subresourceRange = colour_range;
-
             vk::DependencyInfo dep_to_present{};
             dep_to_present.setImageMemoryBarriers(to_present);
             cmd.pipelineBarrier2(dep_to_present);
 
             cmd.end();
 
-            // 6. Submit (wait on image-available, signal render-finished, fence this frame slot).
+            // 3. Submit.
             vk::CommandBufferSubmitInfo cmd_submit{};
             cmd_submit.commandBuffer = *cmd;
 
@@ -306,7 +397,7 @@ namespace Engine
 
             m_device.graphicsQueue().submit2(submit, *m_in_flight[m_current_frame]);
 
-            // 7. Present (waits on render-finished).
+            // 4. Present.
             vk::SwapchainKHR swapchain_handle = *m_swapchain.get();
             vk::Semaphore render_finished = *m_render_finished[image_index];
             vk::PresentInfoKHR present_info{};
@@ -321,7 +412,6 @@ namespace Engine
 
             m_current_frame = (m_current_frame + 1) % MAX_FRAMES_IN_FLIGHT;
         } catch (const vk::OutOfDateKHRError&) {
-            // Swapchain went stale (resize/minimise) — rebuild and skip this frame.
             try {
                 recreateSwapchain(width, height);
             } catch (const vk::SystemError& e) {
@@ -338,7 +428,6 @@ namespace Engine
 
     void Renderer::destroy()
     {
-        // Ensure the GPU is idle before tearing anything down (frames may be in flight).
         try {
             if (*m_device.get()) {
                 m_device.get().waitIdle();
@@ -353,9 +442,13 @@ namespace Engine
         m_image_available.clear();
         m_command_buffers.clear();
         m_command_pool = nullptr;
+        m_descriptor_set = nullptr;
+        m_descriptor_pool = nullptr;
+        m_compute_pipeline.destroy();
         m_pipeline.destroy();
         m_swapchain.destroy();
-        m_vertex_buffers.clear(); // free the vertex buffers while the allocator is still alive.
+        m_prev_positions = AllocatedBuffer{}; // free while the allocator is still alive.
+        m_positions = AllocatedBuffer{};
         m_allocator.destroy();
         m_device.destroy();
         m_surface = nullptr;
