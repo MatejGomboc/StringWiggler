@@ -7,6 +7,7 @@ add_executable(${PROJECT_NAME}
     device.cpp
     allocator.cpp
     swapchain.cpp
+    pipeline.cpp
     renderer.cpp
 )
 
@@ -37,3 +38,41 @@ target_link_libraries(${PROJECT_NAME} PRIVATE
     math
     ${CMAKE_DL_LIBS}
 )
+
+# --- Shaders: Slang -> SPIR-V via slangc, validated with spirv-val (both from the Vulkan SDK) ---
+find_program(SLANGC_EXECUTABLE slangc HINTS "$ENV{VULKAN_SDK}/bin" "$ENV{VULKAN_SDK}/Bin" REQUIRED)
+find_program(SPIRV_VAL_EXECUTABLE spirv-val HINTS "$ENV{VULKAN_SDK}/bin" "$ENV{VULKAN_SDK}/Bin" REQUIRED)
+
+set(SHADER_OUTPUT_DIR ${CMAKE_CURRENT_BINARY_DIR})
+set(LINE_SHADER ${CMAKE_CURRENT_SOURCE_DIR}/shaders/line.slang)
+
+# Compile line.slang (both entry points) into one SPIR-V module, then validate it.
+add_custom_command(
+    OUTPUT ${SHADER_OUTPUT_DIR}/line.spv
+    COMMAND ${SLANGC_EXECUTABLE}
+        ${LINE_SHADER}
+        -target spirv
+        -profile spirv_1_4
+        -emit-spirv-directly
+        -fvk-use-entrypoint-name
+        -warnings-as-errors all
+        -entry vertMain
+        -entry fragMain
+        -o ${SHADER_OUTPUT_DIR}/line.spv
+    COMMAND ${SPIRV_VAL_EXECUTABLE} --target-env vulkan1.3 ${SHADER_OUTPUT_DIR}/line.spv
+    DEPENDS ${LINE_SHADER}
+    COMMENT "Compiling line.slang -> line.spv (with validation)"
+    VERBATIM
+)
+
+# Compile shaders as part of ALL, and copy them next to the executable for runtime loading.
+add_custom_target(shaders ALL DEPENDS ${SHADER_OUTPUT_DIR}/line.spv)
+add_dependencies(${PROJECT_NAME} shaders)
+
+add_custom_target(copy_shaders ALL
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        ${SHADER_OUTPUT_DIR}/line.spv $<TARGET_FILE_DIR:${PROJECT_NAME}>/line.spv
+    COMMENT "Copying shaders next to the executable"
+    VERBATIM
+)
+add_dependencies(copy_shaders shaders)
