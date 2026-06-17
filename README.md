@@ -5,7 +5,8 @@ whipping around as you go. A simple, satisfying, utterly pointless app for when 
 
 Built with Vulkan for rendering.
 
-**Status:** Early stage: opens a window, initialises Vulkan, then idles — the string, mouse tracking and physics are still to come.
+**Status:** Working — a cyan string hangs from the cursor and wiggles, simulated on the GPU (Verlet physics in a compute shader) and drawn as a line strip.
+Rendering runs on its own thread and only draws while the string is moving. Runs on any Vulkan 1.3 GPU, integrated included.
 
 ## Platforms
 
