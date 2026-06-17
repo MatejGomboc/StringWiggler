@@ -14,23 +14,24 @@
 
 #pragma once
 
+#include "allocator.hpp"
 #include "device.hpp"
 #include "instance.hpp"
 #include "native_window_handle.hpp"
 #include <log/logger.hpp>
-#ifdef _WIN32
-#include <Volk/volk.h>
-#else
-#include <volk/volk.h>
-#endif
+#include <vulkan/vulkan_raii.hpp>
 #include <string>
 
 namespace Engine
 {
 
     //! Composition root for the Vulkan back end. Owns, in dependency order, the instance,
-    //! the window surface and the logical device. Subsequent milestones (swapchain,
-    //! pipeline, frame synchronisation) will be added here.
+    //! the window surface, the logical device and the VMA allocator. Member declaration order
+    //! gives correct reverse-order destruction (allocator, device, surface, instance).
+    //!
+    //! Exception policy: the underlying vk::raii types throw on Vulkan errors; those are
+    //! caught at the init() boundary (here and in each sub-component) and translated to
+    //! out_error_message, so no exception escapes the renderer's public API.
     class Renderer {
     public:
         Renderer() = default;
@@ -50,8 +51,9 @@ namespace Engine
 
     private:
         Instance m_instance; //!< Vulkan instance + debug messenger.
-        VkSurfaceKHR m_surface{VK_NULL_HANDLE}; //!< Window surface (owned here, between instance and device).
+        vk::raii::SurfaceKHR m_surface{nullptr}; //!< Window surface (between instance and device).
         Device m_device; //!< Physical + logical device and queues.
+        Allocator m_allocator; //!< VMA allocator (created after the device).
         bool m_initialised{false}; //!< True once init() has succeeded.
     };
 

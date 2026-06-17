@@ -30,25 +30,43 @@ namespace Engine
             return false;
         }
 
-        // 1. Instance (+ validation messenger in debug builds).
-        if (!m_instance.init(logger, out_error_message)) {
-            destroy();
-            return false;
-        }
-        logger.logInfo("Vulkan instance created.");
+        // Each sub-component catches vk::raii exceptions internally and returns bool; the
+        // outer try is a final safety net so nothing escapes the renderer boundary.
+        try {
+            // 1. Instance (+ validation messenger in debug builds).
+            if (!m_instance.init(logger, out_error_message)) {
+                destroy();
+                return false;
+            }
+            logger.logInfo("Vulkan instance created.");
 
-        // 2. Surface for the native window.
-        if (!createSurface(m_instance.get(), window_handle, m_surface, out_error_message)) {
-            destroy();
-            return false;
-        }
+            // 2. Surface for the native window.
+            if (!createSurface(m_instance.get(), window_handle, m_surface, out_error_message)) {
+                destroy();
+                return false;
+            }
 
-        // 3. Physical + logical device and queues.
-        if (!m_device.init(m_instance.get(), m_surface, out_error_message)) {
+            // 3. Physical + logical device and queues.
+            if (!m_device.init(m_instance, m_surface, out_error_message)) {
+                destroy();
+                return false;
+            }
+            logger.logInfo("Selected GPU \"" + m_device.name() + "\" for rendering.");
+
+            // 4. VMA allocator (depends on instance + device).
+            if (!m_allocator.init(m_instance.handle(), *m_device.physicalDevice(), *m_device.get(), logger, out_error_message)) {
+                destroy();
+                return false;
+            }
+        } catch (const vk::SystemError& e) {
+            out_error_message = std::string("Vulkan error during renderer initialisation: ") + e.what();
+            destroy();
+            return false;
+        } catch (const std::exception& e) {
+            out_error_message = std::string("Error during renderer initialisation: ") + e.what();
             destroy();
             return false;
         }
-        logger.logInfo("Selected GPU \"" + m_device.name() + "\" for rendering.");
 
         m_initialised = true;
         return true;
@@ -56,15 +74,10 @@ namespace Engine
 
     void Renderer::destroy()
     {
-        // Reverse construction order: device, then surface (while the instance is still
-        // alive to destroy it), then the instance itself.
+        // Reverse construction order: allocator, device, surface, instance.
+        m_allocator.destroy();
         m_device.destroy();
-
-        if ((m_instance.get() != VK_NULL_HANDLE) && (m_surface != VK_NULL_HANDLE)) {
-            vkDestroySurfaceKHR(m_instance.get(), m_surface, nullptr);
-            m_surface = VK_NULL_HANDLE;
-        }
-
+        m_surface = nullptr;
         m_instance.destroy();
         m_initialised = false;
     }

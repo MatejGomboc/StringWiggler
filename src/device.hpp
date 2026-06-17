@@ -14,11 +14,13 @@
 
 #pragma once
 
+#include "instance.hpp"
 #ifdef _WIN32
 #include <Volk/volk.h>
 #else
 #include <volk/volk.h>
 #endif
+#include <vulkan/vulkan_raii.hpp>
 #include <cstdint>
 #include <string>
 
@@ -40,8 +42,8 @@ namespace Engine
     };
 
     //! Selects a suitable physical device and owns the logical device + queue handles.
-    //! Requires a graphics queue, a present queue (for the given surface) and the
-    //! VK_KHR_swapchain extension. Discrete GPUs are preferred over integrated ones.
+    //! Requires graphics + present queues and the VK_KHR_swapchain extension; discrete GPUs
+    //! are preferred. vk::raii exceptions are caught in init() and translated to bool.
     class Device {
     public:
         Device() = default;
@@ -52,29 +54,29 @@ namespace Engine
         Device(Device&&) = delete;
         Device& operator=(Device&&) = delete;
 
-        //! Picks a physical device and creates the logical device + queues. Returns false
-        //! and fills out_error_message on failure.
-        [[nodiscard]] bool init(VkInstance instance, VkSurfaceKHR surface, std::string& out_error_message);
+        //! Picks a physical device and creates the logical device + queues. Returns false and
+        //! fills out_error_message on failure.
+        [[nodiscard]] bool init(const Instance& instance, const vk::raii::SurfaceKHR& surface, std::string& out_error_message);
 
         //! Destroys the logical device. Safe to call repeatedly.
         void destroy();
 
-        [[nodiscard]] VkPhysicalDevice physicalDevice() const
+        [[nodiscard]] const vk::raii::PhysicalDevice& physicalDevice() const
         {
             return m_physical_device;
         }
 
-        [[nodiscard]] VkDevice get() const
+        [[nodiscard]] const vk::raii::Device& get() const
         {
-            return m_vk_logical_device;
+            return m_device;
         }
 
-        [[nodiscard]] VkQueue graphicsQueue() const
+        [[nodiscard]] const vk::raii::Queue& graphicsQueue() const
         {
             return m_graphics_queue;
         }
 
-        [[nodiscard]] VkQueue presentQueue() const
+        [[nodiscard]] const vk::raii::Queue& presentQueue() const
         {
             return m_present_queue;
         }
@@ -91,16 +93,15 @@ namespace Engine
 
     private:
         //! Finds graphics + present queue families for a physical device against a surface.
-        [[nodiscard]] static QueueFamilyIndices findQueueFamilies(VkPhysicalDevice physical_device, VkSurfaceKHR surface);
+        [[nodiscard]] static QueueFamilyIndices findQueueFamilies(const vk::raii::PhysicalDevice& physical_device, const vk::raii::SurfaceKHR& surface);
 
-        //! Scores a physical device for suitability. Returns a negative value when the
-        //! device cannot be used (missing queues or required extensions).
-        [[nodiscard]] static int rateDevice(VkPhysicalDevice physical_device, VkSurfaceKHR surface);
+        //! Scores a physical device for suitability; returns a negative value when unusable.
+        [[nodiscard]] static int rateDevice(const vk::raii::PhysicalDevice& physical_device, const vk::raii::SurfaceKHR& surface);
 
-        VkPhysicalDevice m_physical_device{VK_NULL_HANDLE}; //!< Chosen physical device.
-        VkDevice m_vk_logical_device{VK_NULL_HANDLE}; //!< Logical device handle.
-        VkQueue m_graphics_queue{VK_NULL_HANDLE}; //!< Graphics queue handle.
-        VkQueue m_present_queue{VK_NULL_HANDLE}; //!< Present queue handle.
+        vk::raii::PhysicalDevice m_physical_device{nullptr}; //!< Chosen physical device.
+        vk::raii::Device m_device{nullptr}; //!< Logical device handle.
+        vk::raii::Queue m_graphics_queue{nullptr}; //!< Graphics queue handle.
+        vk::raii::Queue m_present_queue{nullptr}; //!< Present queue handle.
         QueueFamilyIndices m_queue_families{}; //!< Selected queue family indices.
         std::string m_device_name; //!< Human-readable name of the chosen device.
     };

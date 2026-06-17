@@ -75,14 +75,14 @@ Key settings:
 | Member variables | m_snake_case | `m_device` |
 | Macros | SCREAMING_SNAKE_CASE | `VK_NO_PROTOTYPES` |
 
-### Error Handling — No Exceptions in Production Code
+### Error Handling — Our Code Does Not Throw
 
-Production code does **not** throw or catch exceptions. Functions that can fail return `bool` and write a
-human-readable message into a `std::string& out_error_message` out-parameter:
+Our own code never throws and never lets an exception cross a public interface. Functions that can fail
+return `bool` and write a human-readable message into a `std::string& out_error_message` out-parameter:
 
 ```cpp
 //! Creates the Vulkan surface for the given window. Returns false and fills out_error_message on failure.
-[[nodiscard]] bool createSurface(VkInstance instance, const NativeWindowHandle& handle, VkSurfaceKHR& out_surface, std::string& out_error_message);
+[[nodiscard]] bool createSurface(const vk::raii::Instance& instance, const NativeWindowHandle& handle, vk::raii::SurfaceKHR& out_surface, std::string& out_error_message);
 ```
 
 The caller checks the result and routes the message to the logger:
@@ -96,9 +96,22 @@ if (!createSurface(m_instance.get(), handle, m_surface, error))
 }
 ```
 
-The **only** exception to this rule is test code. The `TestingLib` framework signals failures by throwing
-(`TEST_CHECK`, `TEST_CHECK_EQUAL`, `TEST_CHECK_THROWS`), so test targets are built with exceptions enabled.
-Never throw from a library or from `src/`.
+The external Vulkan library is the one place exceptions exist: `vk::raii` / vulkan-hpp throw a
+`vk::SystemError` on Vulkan errors. We let them throw — but we **catch them at the component `init()`
+boundary** and translate to `out_error_message`, so no exception ever escapes our API:
+
+```cpp
+try {
+    m_instance = vk::raii::Instance(m_context, create_info);
+} catch (const vk::SystemError& e) {
+    out_error_message = std::string("Vulkan error: ") + e.what();
+    return false;
+}
+```
+
+The other place exceptions are allowed is test code: the `TestingLib` framework signals failures by
+throwing (`TEST_CHECK`, `TEST_CHECK_EQUAL`, `TEST_CHECK_THROWS`), so test targets are built with
+exceptions enabled. Never throw your own exceptions from a library or from `src/`.
 
 ### Type Explicitness
 
@@ -252,41 +265,48 @@ uint32_t m_width = 0;
 bool m_dying = false;
 ```
 
-### Vulkan: Raw volk + C API
+### Vulkan: vulkan-hpp + vk::raii + VMA
 
-StringWiggler uses the **plain C Vulkan API through volk** — not vulkan-hpp and not `vk::raii`. Do not
-introduce C++ Vulkan bindings.
+StringWiggler uses **vulkan-hpp with `vk::raii`** for Vulkan handles and **VMA** (Vulkan Memory
+Allocator) for GPU memory. `vk::raii` gives automatic, ordered teardown; its exceptions are contained at
+the `init()` boundary (see the error-handling section above).
 
 - Vulkan is loaded dynamically: `VK_NO_PROTOTYPES` is defined, `volk.cpp` provides `VOLK_IMPLEMENTATION`,
-  and `volkInitialize()` / `volkLoadInstance()` / `volkLoadDevice()` set up the entry points.
-- Handles are raw C types (`VkInstance`, `VkDevice`, `VkSurfaceKHR`, …). Initialise and reset every
-  owned handle to `VK_NULL_HANDLE`, and test against it rather than against `nullptr`.
-- Vulkan structs are zero-initialised with `{}` and have their `sType` set explicitly.
+  and `volkInitialize()` / `volkLoadInstanceOnly()` / `volkLoadDevice()` set up the entry points. The
+  vulkan-hpp dynamic dispatcher (`VULKAN_HPP_DISPATCH_LOADER_DYNAMIC`) is fed Volk's
+  `vkGetInstanceProcAddr` and re-`init`-ed after the instance and device exist.
+- Handles are `vk::raii::` types (`vk::raii::Instance`, `vk::raii::Device`, `vk::raii::SurfaceKHR`, …).
+  Declare them in dependency order so reverse-order member destruction tears them down correctly; reset
+  one early by assigning `nullptr`.
+- GPU memory goes through VMA: the `Allocator` plus the move-only `AllocatedBuffer` / `AllocatedImage`
+  RAII wrappers, fed Volk's function pointers via `vmaImportVulkanFunctionsFromVolk`.
+- Prefer the vulkan-hpp value types and setters; raw C structs are fine for the VMA create-info (VMA is
+  a C API).
 
 ```cpp
-VkInstanceCreateInfo create_info{};
-create_info.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
-create_info.pApplicationInfo = &app_info;
-create_info.enabledExtensionCount = static_cast<uint32_t>(extensions.size());
-create_info.ppEnabledExtensionNames = extensions.data();
+vk::InstanceCreateInfo create_info{};
+create_info.setPApplicationInfo(&app_info);
+create_info.setPEnabledExtensionNames(extensions);
+m_instance = vk::raii::Instance(m_context, create_info);
 ```
 
 ### Resource Ownership
 
-RAII everywhere. Each class that owns Vulkan handles releases them in an explicit `destroy()` method (or
-destructor) that calls the matching `vkDestroy*` in **reverse order of construction**. Guard against
-double-destruction (for example with an `m_dying` flag) and reset each handle to `VK_NULL_HANDLE` after
-destroying it. Use `std::unique_ptr` for single-owner heap objects (the `WindowLib::create()` factory
-returns `std::unique_ptr<Window>`). Never use raw `new` / `delete` for ownership.
+RAII everywhere. `vk::raii::` handles destroy themselves in reverse member-declaration order, so order
+your members by dependency (instance, surface, device, allocator). Where explicit ordered teardown is
+wanted, an owner exposes an idempotent `destroy()` that resets its handles in reverse order — assigning
+`nullptr` to a `vk::raii` handle destroys it. Use `std::unique_ptr` for single-owner heap objects (the
+`WindowLib::create()` factory returns `std::unique_ptr<Window>`). Never use raw `new` / `delete` for
+ownership.
 
 ```cpp
 void Device::destroy()
 {
-    if (m_device != VK_NULL_HANDLE)
-    {
-        vkDestroyDevice(m_device, nullptr);
-        m_device = VK_NULL_HANDLE;
-    }
+    // Assigning nullptr to a vk::raii handle destroys it; logical device last.
+    m_present_queue = nullptr;
+    m_graphics_queue = nullptr;
+    m_device = nullptr;
+    m_physical_device = nullptr;
 }
 ```
 

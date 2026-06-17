@@ -18,23 +18,31 @@
 #include <string>
 #include <vector>
 
+// Storage for the vulkan-hpp dynamic dispatcher — exactly one translation unit.
+VULKAN_HPP_DEFAULT_DISPATCH_LOADER_DYNAMIC_STORAGE
+
 namespace Engine
 {
 
 #ifdef DEBUG
     //! Vulkan validation callback — routes layer messages to the logger by severity.
     //! pUserData is a LoggingLib::Logger* supplied at messenger-creation time.
-    static VkBool32 VKAPI_PTR vulkanDebugCallback(VkDebugUtilsMessageSeverityFlagBitsEXT message_severity, VkDebugUtilsMessageTypeFlagsEXT message_type,
-        const VkDebugUtilsMessengerCallbackDataEXT* callback_data, void* user_data)
+    static VKAPI_ATTR VkBool32 VKAPI_CALL vulkanDebugCallback(vk::DebugUtilsMessageSeverityFlagBitsEXT severity, vk::DebugUtilsMessageTypeFlagsEXT type,
+        const vk::DebugUtilsMessengerCallbackDataEXT* callback_data, void* user_data)
     {
+        auto* logger = static_cast<LoggingLib::Logger*>(user_data);
+        if (!logger) {
+            return vk::False;
+        }
+
         std::string type_str = "[";
-        if (message_type & VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT) {
+        if (type & vk::DebugUtilsMessageTypeFlagBitsEXT::ePerformance) {
             type_str += "PERFORMANCE,";
         }
-        if (message_type & VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT) {
+        if (type & vk::DebugUtilsMessageTypeFlagBitsEXT::eValidation) {
             type_str += "VALIDATION,";
         }
-        if (message_type & VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT) {
+        if (type & vk::DebugUtilsMessageTypeFlagBitsEXT::eGeneral) {
             type_str += "GENERAL,";
         }
         if (type_str.size() > 1) {
@@ -42,20 +50,19 @@ namespace Engine
         }
         type_str += "]";
 
-        auto* logger = static_cast<LoggingLib::Logger*>(user_data);
         std::string message = "[LAYER] " + type_str + " " + std::string(callback_data->pMessage);
 
-        if (message_severity >= VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT) {
+        if (severity & vk::DebugUtilsMessageSeverityFlagBitsEXT::eError) {
             logger->logError(message);
-        } else if (message_severity >= VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT) {
+        } else if (severity & vk::DebugUtilsMessageSeverityFlagBitsEXT::eWarning) {
             logger->logWarning(message);
-        } else if (message_severity >= VK_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT) {
+        } else if (severity & vk::DebugUtilsMessageSeverityFlagBitsEXT::eInfo) {
             logger->logInfo(message);
         } else {
             logger->logDebug(message);
         }
 
-        return VK_FALSE;
+        return vk::False;
     }
 #endif
 
@@ -68,162 +75,101 @@ namespace Engine
     // so mark it [[maybe_unused]] to keep Release (no DEBUG) warning-clean under -Werror.
     bool Instance::init([[maybe_unused]] LoggingLib::Logger& logger, std::string& out_error_message)
     {
-        if (m_vk_instance != VK_NULL_HANDLE) {
-            out_error_message = "Vulkan instance already initialised.";
-            return false;
-        }
-
+        // Step 1: Volk finds the Vulkan loader, then feed its vkGetInstanceProcAddr to the
+        // vulkan-hpp default dispatcher (used by the free enumerate* functions below).
         if (volkInitialize() != VK_SUCCESS) {
             out_error_message = "Vulkan not found on this system.";
             return false;
         }
+        VULKAN_HPP_DEFAULT_DISPATCHER.init(vkGetInstanceProcAddr);
 
-        uint32_t vk_version = volkGetInstanceVersion();
-        if (vk_version == 0) {
-            out_error_message = "Failed to get Vulkan version.";
-            return false;
-        }
-
-        if ((VK_API_VERSION_VARIANT(vk_version) != 0) || (VK_API_VERSION_MAJOR(vk_version) != 1) || (VK_API_VERSION_MINOR(vk_version) < 3)) {
-            out_error_message = "Unsupported Vulkan version:" + std::to_string(VK_API_VERSION_MAJOR(vk_version)) + "." + std::to_string(VK_API_VERSION_MINOR(vk_version))
-                + "." + std::to_string(VK_API_VERSION_PATCH(vk_version)) + ":" + std::to_string(VK_API_VERSION_VARIANT(vk_version));
-            return false;
-        }
-
-        VkResult vk_error;
-
-        // ---------------------------------------------------------------------------
-        // Validation layer (debug builds only).
-        // ---------------------------------------------------------------------------
-#ifdef DEBUG
-        uint32_t supported_instance_layers_count;
-        vk_error = vkEnumerateInstanceLayerProperties(&supported_instance_layers_count, nullptr);
-        if (vk_error != VK_SUCCESS) {
-            out_error_message = "Failed to enumerate Vulkan instance layers. VK error:" + std::to_string(vk_error) + ".";
-            return false;
-        }
-
-        std::vector<VkLayerProperties> supported_instance_layers(supported_instance_layers_count);
-        vk_error = vkEnumerateInstanceLayerProperties(&supported_instance_layers_count, supported_instance_layers.data());
-        if (vk_error != VK_SUCCESS) {
-            out_error_message = "Failed to enumerate Vulkan instance layers. VK error:" + std::to_string(vk_error) + ".";
-            return false;
-        }
-
-        std::vector<const char*> instance_layers{VK_LAYER_KHRONOS_VALIDATION_NAME};
-        for (const char* const layer : instance_layers) {
-            if (!isLayerAvailable(supported_instance_layers, layer)) {
-                out_error_message = "Vulkan instance layer \"" + std::string(layer) + "\" not supported.";
+        try {
+            // Step 2: require Vulkan 1.3+.
+            uint32_t api_version = vk::enumerateInstanceVersion();
+            if ((VK_API_VERSION_VARIANT(api_version) != 0) || (VK_API_VERSION_MAJOR(api_version) != 1) || (VK_API_VERSION_MINOR(api_version) < 3)) {
+                out_error_message = "Unsupported Vulkan version:" + std::to_string(VK_API_VERSION_MAJOR(api_version)) + "."
+                    + std::to_string(VK_API_VERSION_MINOR(api_version)) + "." + std::to_string(VK_API_VERSION_PATCH(api_version));
                 return false;
             }
-        }
-#endif
 
-        // ---------------------------------------------------------------------------
-        // Required instance extensions: surface (WSI) plus debug utils in debug builds.
-        // ---------------------------------------------------------------------------
-        std::vector<const char*> instance_extensions = requiredSurfaceExtensions();
+            // Step 3: required instance extensions (surface WSI + debug utils in debug builds).
+            std::vector<const char*> extensions = requiredSurfaceExtensions();
 #ifdef DEBUG
-        instance_extensions.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
+            extensions.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
 #endif
+            std::vector<vk::ExtensionProperties> available_extensions = vk::enumerateInstanceExtensionProperties();
+            for (const char* extension : extensions) {
+                if (!isExtensionAvailable(available_extensions, extension)) {
+                    out_error_message = "Vulkan instance extension \"" + std::string(extension) + "\" not supported.";
+                    return false;
+                }
+            }
 
-        uint32_t supported_instance_extensions_count;
-        vk_error = vkEnumerateInstanceExtensionProperties(nullptr, &supported_instance_extensions_count, nullptr);
-        if (vk_error != VK_SUCCESS) {
-            out_error_message = "Failed to enumerate Vulkan instance extensions. VK error:" + std::to_string(vk_error) + ".";
-            return false;
-        }
-
-        std::vector<VkExtensionProperties> supported_instance_extensions(supported_instance_extensions_count);
-        vk_error = vkEnumerateInstanceExtensionProperties(nullptr, &supported_instance_extensions_count, supported_instance_extensions.data());
-        if (vk_error != VK_SUCCESS) {
-            out_error_message = "Failed to enumerate Vulkan instance extensions. VK error:" + std::to_string(vk_error) + ".";
-            return false;
-        }
-
-        for (const char* const extension : instance_extensions) {
-            if (!isExtensionAvailable(supported_instance_extensions, extension)) {
-                out_error_message = "Vulkan instance extension \"" + std::string(extension) + "\" not supported.";
+            // Step 4: validation layer (debug builds only).
+            std::vector<const char*> layers;
+#ifdef DEBUG
+            std::vector<vk::LayerProperties> available_layers = vk::enumerateInstanceLayerProperties();
+            if (!isLayerAvailable(available_layers, "VK_LAYER_KHRONOS_validation")) {
+                out_error_message = "Vulkan instance layer \"VK_LAYER_KHRONOS_validation\" not supported.";
                 return false;
             }
-        }
-
-        // ---------------------------------------------------------------------------
-        // Instance creation.
-        // ---------------------------------------------------------------------------
-        VkApplicationInfo app_info{};
-        app_info.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
-        app_info.pNext = nullptr;
-        app_info.pApplicationName = "StringWiggler";
-        app_info.applicationVersion = 0;
-        app_info.pEngineName = nullptr;
-        app_info.engineVersion = 0;
-        app_info.apiVersion = VK_MAKE_API_VERSION(0, 1, 3, 0);
-
-#ifdef DEBUG
-        VkDebugUtilsMessengerCreateInfoEXT debug_messenger_info{};
-        debug_messenger_info.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT;
-        debug_messenger_info.messageSeverity = VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT
-            | VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT;
-        debug_messenger_info.messageType = VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT
-            | VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT;
-        debug_messenger_info.pfnUserCallback = vulkanDebugCallback;
-        debug_messenger_info.pUserData = &logger;
+            layers.push_back("VK_LAYER_KHRONOS_validation");
 #endif
 
-        VkInstanceCreateInfo inst_info{};
-        inst_info.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
-        // Chain the messenger into pNext so instance creation/destruction is itself validated.
-#ifdef DEBUG
-        inst_info.pNext = &debug_messenger_info;
-#else
-        inst_info.pNext = nullptr;
-#endif
-        inst_info.flags = 0;
-        inst_info.pApplicationInfo = &app_info;
-#ifdef DEBUG
-        inst_info.enabledLayerCount = static_cast<uint32_t>(instance_layers.size());
-        inst_info.ppEnabledLayerNames = instance_layers.data();
-#else
-        inst_info.enabledLayerCount = 0;
-        inst_info.ppEnabledLayerNames = nullptr;
-#endif
-        inst_info.enabledExtensionCount = static_cast<uint32_t>(instance_extensions.size());
-        inst_info.ppEnabledExtensionNames = instance_extensions.data();
+            // Step 5: create the instance.
+            vk::ApplicationInfo app_info{};
+            app_info.setPApplicationName("StringWiggler");
+            app_info.applicationVersion = VK_MAKE_API_VERSION(0, 0, 1, 0);
+            app_info.setPEngineName("StringWiggler");
+            app_info.engineVersion = VK_MAKE_API_VERSION(0, 0, 1, 0);
+            app_info.apiVersion = VK_API_VERSION_1_3;
 
-        vk_error = vkCreateInstance(&inst_info, nullptr, &m_vk_instance);
-        if (vk_error != VK_SUCCESS) {
-            out_error_message = "Failed to create Vulkan instance. VK error:" + std::to_string(vk_error) + ".";
+            vk::InstanceCreateInfo create_info{};
+            create_info.setPApplicationInfo(&app_info);
+            create_info.setPEnabledLayerNames(layers);
+            create_info.setPEnabledExtensionNames(extensions);
+
+#ifdef DEBUG
+            // Chain the messenger into instance creation so creation/destruction is validated.
+            vk::DebugUtilsMessengerCreateInfoEXT debug_create_info{};
+            // Warning + Error only: Verbose/Info drown the console in loader/best-practice
+            // chatter (hundreds of lines per run). Widen this when chasing a specific issue.
+            debug_create_info.messageSeverity = vk::DebugUtilsMessageSeverityFlagBitsEXT::eWarning | vk::DebugUtilsMessageSeverityFlagBitsEXT::eError;
+            debug_create_info.messageType = vk::DebugUtilsMessageTypeFlagBitsEXT::eGeneral | vk::DebugUtilsMessageTypeFlagBitsEXT::eValidation
+                | vk::DebugUtilsMessageTypeFlagBitsEXT::ePerformance;
+            debug_create_info.pfnUserCallback = vulkanDebugCallback;
+            debug_create_info.setPUserData(&logger);
+            create_info.setPNext(&debug_create_info);
+#endif
+
+            m_instance = vk::raii::Instance(m_context, create_info);
+
+            // Step 6: load instance-level function pointers via Volk + the dispatcher.
+            volkLoadInstanceOnly(*m_instance);
+            VULKAN_HPP_DEFAULT_DISPATCHER.init(*m_instance);
+
+#ifdef DEBUG
+            // Step 7: create the persistent debug messenger.
+            m_debug_messenger = m_instance.createDebugUtilsMessengerEXT(debug_create_info);
+#endif
+        } catch (const vk::SystemError& e) {
+            out_error_message = std::string("Vulkan error during instance creation: ") + e.what();
+            return false;
+        } catch (const std::exception& e) {
+            out_error_message = std::string("Error during instance creation: ") + e.what();
             return false;
         }
-
-        volkLoadInstanceOnly(m_vk_instance);
-
-#ifdef DEBUG
-        vk_error = vkCreateDebugUtilsMessengerEXT(m_vk_instance, &debug_messenger_info, nullptr, &m_vk_debug_messenger);
-        if (vk_error != VK_SUCCESS) {
-            out_error_message = "Failed to create Vulkan debug messenger. VK error:" + std::to_string(vk_error) + ".";
-            destroy();
-            return false;
-        }
-#endif
 
         return true;
     }
 
     void Instance::destroy()
     {
+        // Assigning nullptr to a vk::raii handle destroys it. Messenger before instance.
 #ifdef DEBUG
-        if ((m_vk_instance != VK_NULL_HANDLE) && (m_vk_debug_messenger != VK_NULL_HANDLE)) {
-            vkDestroyDebugUtilsMessengerEXT(m_vk_instance, m_vk_debug_messenger, nullptr);
-            m_vk_debug_messenger = VK_NULL_HANDLE;
-        }
+        m_debug_messenger = nullptr;
 #endif
-
-        if (m_vk_instance != VK_NULL_HANDLE) {
-            vkDestroyInstance(m_vk_instance, nullptr);
-            m_vk_instance = VK_NULL_HANDLE;
-        }
+        m_instance = nullptr;
     }
 
 } // namespace Engine

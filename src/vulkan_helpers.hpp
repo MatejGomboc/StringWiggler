@@ -19,32 +19,28 @@
 #else
 #include <volk/volk.h>
 #endif
-#include <string>
+#include <vulkan/vulkan_raii.hpp>
+#include <algorithm>
+#include <string_view>
 #include <vector>
 
 namespace Engine
 {
 
     //! Returns true if a layer with the given name appears in the enumerated list.
-    [[nodiscard]] inline bool isLayerAvailable(const std::vector<VkLayerProperties>& available, const char* name)
+    [[nodiscard]] inline bool isLayerAvailable(const std::vector<vk::LayerProperties>& available, const char* name)
     {
-        for (const VkLayerProperties& layer : available) {
-            if (std::string(layer.layerName) == std::string(name)) {
-                return true;
-            }
-        }
-        return false;
+        return std::ranges::any_of(available, [name](const vk::LayerProperties& layer) {
+            return std::string_view(layer.layerName.data()) == name;
+        });
     }
 
     //! Returns true if an extension with the given name appears in the enumerated list.
-    [[nodiscard]] inline bool isExtensionAvailable(const std::vector<VkExtensionProperties>& available, const char* name)
+    [[nodiscard]] inline bool isExtensionAvailable(const std::vector<vk::ExtensionProperties>& available, const char* name)
     {
-        for (const VkExtensionProperties& extension : available) {
-            if (std::string(extension.extensionName) == std::string(name)) {
-                return true;
-            }
-        }
-        return false;
+        return std::ranges::any_of(available, [name](const vk::ExtensionProperties& extension) {
+            return std::string_view(extension.extensionName.data()) == name;
+        });
     }
 
 } // namespace Engine

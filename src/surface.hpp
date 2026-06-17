@@ -20,6 +20,7 @@
 #else
 #include <volk/volk.h>
 #endif
+#include <vulkan/vulkan_raii.hpp>
 #include <string>
 #include <vector>
 
@@ -27,13 +28,13 @@ namespace Engine
 {
 
     //! Returns the instance-level surface extensions required for the current platform
-    //! (always VK_KHR_surface plus the platform-specific WSI extension). Colocated with
+    //! (VK_KHR_surface plus the platform-specific WSI extension). Colocated with
     //! createSurface() so all windowing-platform knowledge lives in one place.
     [[nodiscard]] std::vector<const char*> requiredSurfaceExtensions();
 
     //! Creates a Vulkan surface for the given native window. Returns false and fills
-    //! out_error_message on failure; the caller owns the surface and destroys it via
-    //! vkDestroySurfaceKHR.
-    [[nodiscard]] bool createSurface(VkInstance instance, const NativeWindowHandle& window_handle, VkSurfaceKHR& out_surface, std::string& out_error_message);
+    //! out_error_message on failure. vk::raii exceptions are caught here, not propagated.
+    [[nodiscard]] bool createSurface(const vk::raii::Instance& instance, const NativeWindowHandle& window_handle, vk::raii::SurfaceKHR& out_surface,
+        std::string& out_error_message);
 
 } // namespace Engine

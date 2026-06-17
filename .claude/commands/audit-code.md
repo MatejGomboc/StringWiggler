@@ -13,13 +13,15 @@ Perform a thorough C++ code quality and bug-hunting audit on specified files, or
 - Handles destroyed in reverse construction order (verify each `destroy()` frees the handles it owns, and that teardown unwinds in the reverse order of construction)
 - `m_dying`-style guards respected so a worker or callback cannot touch a half-torn-down object
 
-This project uses raw volk handles with manual `destroy()` and `VK_NULL_HANDLE`. Do NOT suggest
-converting to `vk::raii` or vulkan-hpp; instead verify the existing manual ownership is correct.
+This project uses vulkan-hpp with `vk::raii` (loaded dynamically via volk) and VMA for GPU memory. Verify that `vk::raii` handles
+are declared in dependency order (so reverse-order destruction is correct), that any `vk::raii` / vulkan-hpp call is wrapped in
+`try/catch` at the component `init()` boundary and translated to `bool` + `out_error_message` (no exception may escape our
+interfaces), and that VMA resources use the `AllocatedBuffer` / `AllocatedImage` RAII wrappers.
 
 ### Vulkan-Specific
 
-- Every `VkResult` from `vkCreate*` / `vkAllocate*` / `vkEnumerate*` / etc. MUST be checked. On failure
-  the function must fill `out_error_message` and `return false` (no exceptions in production code).
+- Every `VkResult` from VMA / volk calls (`vmaCreate*`, `vkCreate*`, `vkEnumerate*`, etc.) MUST be checked. On failure the function
+  must fill `out_error_message` and `return false` (our code does not throw its own exceptions).
 - Incorrect struct `sType` fields
 - Uninitialised or non-zeroed Vulkan create-info structs
 - Incorrect queue family indices (graphics vs present)
@@ -44,7 +46,8 @@ converting to `vk::raii` or vulkan-hpp; instead verify the existing manual owner
 - Missing `const` where appropriate
 - Missing `[[nodiscard]]` on functions returning a status / error indicator
 - Using `NULL` instead of `nullptr`
-- Use of exceptions in production code (allowed only in test code under `libs/testing`)
+- Throwing our own exceptions, or letting a `vk::raii` / vulkan-hpp exception escape a component `init()` boundary (it must be
+  caught and translated to `bool` + `out_error_message`; throwing is allowed only in test code under `libs/testing`)
 - Cross-component callbacks must use C-style function pointers plus `void* user_data`, not `std::function`
 
 ### Platform-Specific
