@@ -21,7 +21,9 @@
 #include "pipeline.hpp"
 #include "swapchain.hpp"
 #include <log/logger.hpp>
+#include <math/vector.hpp>
 #include <vulkan/vulkan_raii.hpp>
+#include <array>
 #include <cstdint>
 #include <string>
 #include <vector>
@@ -30,7 +32,8 @@ namespace Engine
 {
 
     //! Composition root for the Vulkan back end. Owns, in dependency order, the instance,
-    //! surface, device, allocator, swapchain and per-frame command/sync objects.
+    //! surface, device, allocator, per-frame vertex buffers, swapchain, pipeline and the
+    //! per-frame command/sync objects.
     //!
     //! Exception policy: vk::raii throws on Vulkan errors; those are caught at the init() and
     //! drawFrame() boundaries (and in each sub-component) and never escape the public API.
@@ -44,15 +47,18 @@ namespace Engine
         Renderer(Renderer&&) = delete;
         Renderer& operator=(Renderer&&) = delete;
 
+        //! Number of nodes (points) in the string.
+        static constexpr uint32_t NODE_COUNT = 32;
+
         //! Initialises the Vulkan back end for the given native window at the given size.
         //! Returns false and fills out_error_message on failure. The logger must outlive the
         //! renderer.
         [[nodiscard]] bool init(LoggingLib::Logger& logger, const NativeWindowHandle& window_handle, uint32_t width, uint32_t height, std::string& out_error_message);
 
-        //! Renders and presents one frame, clearing the swapchain image to the background
-        //! colour. width/height are the current window client size, used to recreate the
-        //! swapchain when it goes out of date (resize/minimise). Never throws.
-        void drawFrame(uint32_t width, uint32_t height);
+        //! Renders and presents one frame. The string's head is pinned to the cursor (given in
+        //! window client pixels); the remaining nodes hang straight down (Phase 4 adds physics).
+        //! width/height drive swapchain recreation (resize/minimise). Never throws.
+        void drawFrame(uint32_t width, uint32_t height, int32_t cursor_x, int32_t cursor_y);
 
         //! Tears down the back end in reverse construction order (waits for the GPU first).
         void destroy();
@@ -64,6 +70,9 @@ namespace Engine
         //! Recreates the swapchain (and the per-image render-finished semaphores) at a new size.
         void recreateSwapchain(uint32_t width, uint32_t height);
 
+        //! Computes the string node positions (NDC) for a head at the given cursor pixel.
+        [[nodiscard]] std::array<MathLib::Vec2, NODE_COUNT> computeNodes(uint32_t width, uint32_t height, int32_t cursor_x, int32_t cursor_y) const;
+
         static constexpr uint32_t MAX_FRAMES_IN_FLIGHT = 2; //!< Frames the CPU may run ahead of the GPU.
 
         LoggingLib::Logger* m_logger{nullptr}; //!< Logger (non-owning), set in init().
@@ -71,8 +80,7 @@ namespace Engine
         vk::raii::SurfaceKHR m_surface{nullptr}; //!< Window surface.
         Device m_device; //!< Physical + logical device and queues.
         Allocator m_allocator; //!< VMA allocator.
-        AllocatedBuffer m_vertex_buffer; //!< Vertex buffer of the string's points (destroyed before the allocator).
-        uint32_t m_vertex_count{0}; //!< Number of points in the vertex buffer.
+        std::vector<AllocatedBuffer> m_vertex_buffers; //!< One mapped vertex buffer per frame-in-flight (destroyed before the allocator).
         Swapchain m_swapchain; //!< Swapchain + image views.
         Pipeline m_pipeline; //!< Graphics pipeline for the line.
         vk::raii::CommandPool m_command_pool{nullptr}; //!< Graphics command pool.
